@@ -43,9 +43,10 @@ catkin_package(
 #  DEPENDS system_lib
 )
 
+#${catkin_INCLUDE_DIRS}
 include_directories(include ${catkin_INCLUDE_DIRS})
 
-add_executable(al5d_sub src/al5d_sub.cpp)
+add_executable(al5d_sub src/al5d_sub.cpp src/RobotArm.cpp)
 target_link_libraries(al5d_sub ${catkin_LIBRARIES})
 
 ## Declare a C++ library
