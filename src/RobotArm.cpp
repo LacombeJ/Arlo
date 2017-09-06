@@ -59,6 +59,20 @@ RobotArm::~RobotArm()
     close(outfile);
 }
 
+void RobotArm::create()
+{
+    int i, * tmp = get_pos();
+    for(i = 0; i < num_servos; i++)
+        new_pos[i] = tmp[i];        // fill new position by current one
+
+    if(init()) {
+        std::cerr << "Failed to initialize usb connection to robotic hand" << std::endl;
+        //std::exit(1);
+    }
+    int use_leap = 1; //TODO remove hardcoded
+    end[1] = (use_leap == 1 ? '2' : '4');
+    std::cout << "Initialized" << std::endl;
+}
 
 /* ----------------------------------------------------------------------------------------- */
 int RobotArm::init()
@@ -179,6 +193,91 @@ void RobotArm::set_outfile(int fd)
 {
   outfile = fd;
 }
+
+
+
+
+
+
+
+
+
+
+void RobotArm::commandRobotUsingIK(float x, float y, float z, float wrist_degree, float wrist_rotate_degree, float open, float reward) {
+
+      // cout <<  "\tx: " << x <<  "\ty: " << y <<  "\tz: " << z << endl;
+      // cout <<  "\troll: " << roll <<  "\tpitch: " << pitch <<  "\tyaw: " << yaw << endl;
+      // cout <<  "\troll: " << direction_roll <<  "\tpitch: " << direction_pitch <<  "\tyaw: " << direction_yaw << endl;
+      float grip_angle_d = 0;
+      float grip_angle_r = grip_angle_d  * M_PI / 180.0;    //grip angle in radians for use in calculations
+      /* Base angle and radial distance from x,y coordinates */
+      float bas_angle_r = atan2( x, y );
+      float rdist = sqrt(( x * x ) + ( y * y ));
+      /* rdist is y coordinate for the arm */
+      y = rdist;
+      /* Grip offsets calculated based on grip angle */
+      float grip_off_z = ( sin( grip_angle_r )) * GRIPPER_VAL;
+      float grip_off_y = ( cos( grip_angle_r )) * GRIPPER_VAL;
+      /* Wrist position */
+      float wrist_z = ( z - grip_off_z ) - BASE_HGT;
+      float wrist_y = y - grip_off_y;
+      /* Shoulder to wrist distance ( AKA sw ) */
+      float s_w = ( wrist_z * wrist_z ) + ( wrist_y * wrist_y );
+      float s_w_sqrt = sqrt( s_w );
+      /* s_w angle to ground */
+      float a1 = atan2( wrist_z, wrist_y );
+      /* s_w angle to humerus */
+      float cos = (( hum_sq - uln_sq ) + s_w ) / ( 2 * HUMERUS * s_w_sqrt );
+      float a2 = acos(cos);
+      /* shoulder angle */
+      float shl_angle_r = a1 + a2;
+      // if (isnan(shl_angle_r) || isinf(shl_angle_r))
+      //   return;
+      float shl_angle_d = shl_angle_r * 180.0 / M_PI;
+      /* elbow angle */
+      float elb_angle_r = acos(( hum_sq + uln_sq - s_w ) / ( 2 * HUMERUS * ULNA ));
+      float elb_angle_d = elb_angle_r * 180.0 / M_PI;
+      float elb_angle_dn = -( 180.0 - elb_angle_d );
+      /* wrist angle */
+      float wri_angle_d = ( grip_angle_d - elb_angle_dn ) - shl_angle_d;
+
+      new_pos[BASE] = ranges[BASE][CENTER]- int((( bas_angle_r * 180.0 / M_PI) * 11.11 ));
+      new_pos[SHOULDER] = ranges[SHOULDER][CENTER] + int((( shl_angle_d - 90.0 ) * 6.6 ));
+      new_pos[ELBOW] = ranges[ELBOW][CENTER] -  int((( elb_angle_d - 90.0 ) * 6.6 ));
+      new_pos[WRIST] = ranges[WRIST][CENTER] + int(( wri_angle_d  * 11.1 / 2 ) - (wrist_degree) * 1000 - 600);
+      new_pos[WRIST_ROTATE] = ranges[WRIST_ROTATE][CENTER] + int((( bas_angle_r * 180.0 / M_PI) * 11.11 ) + wrist_rotate_degree * 1200);
+      new_pos[GRIPPER] = ranges[GRIPPER][MAX] - int( open * 1400);  // move GRIPPER in safe ranges
+
+      std::cout << " " << new_pos[BASE] << " " << new_pos[SHOULDER] << " " << new_pos[ELBOW] << " " << new_pos[WRIST_ROTATE] << " " << new_pos[WRIST] <<  " " << new_pos[GRIPPER] << std::endl;
+
+      // filtration
+      if(filter != 0) {
+        int * tmp_pos = get_pos();
+        // cout << " " << new_pos[0] << " " << new_pos[1] << " " << new_pos[2] << " " << new_pos[3] << " " << new_pos[4] <<  " " << new_pos[5] << endl;
+        // cout << " " << tmp_pos[0] << " " << tmp_pos[1] << " " << tmp_pos[2] << " " << tmp_pos[3] << " " << tmp_pos[4] <<  " " << tmp_pos[5] << endl;
+
+        for(int i = 0; i < num_servos; i++) {
+          if(fabs((tmp_pos[i] - new_pos[i]) / (double)filter_const) > filter) {      // move only if greater than filter
+            move(new_pos);
+            break;
+          }
+        }
+        return;
+      }
+      
+      move(new_pos);
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 
