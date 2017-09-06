@@ -3,25 +3,75 @@
 import rospy
 from std_msgs.msg import Float32MultiArray
 
+import arlo.utils.config as config
+import arlo.input.ps4 as ps4
+
 def main():
 
-    pub = rospy.Publisher('al5d', Float32MultiArray, queue_size=1000)
+    pub = rospy.Publisher('al5d', Float32MultiArray, queue_size=10)
     rospy.init_node('test_pub', anonymous=True)
     
-    rate = rospy.Rate(60)
+    rate = rospy.Rate(10)
+    
+    pc = ps4.PS4Controller()
+    
+    read = True
+    fname = "temp_ald5.json"
+    base = "c"
+    data = {}
+    count = 0
+    num = 0
+    if read:
+        data = config.read(fname)
+        num = data['num']
     
     while not rospy.is_shutdown():
-    
-        a = [10.0, 20.0, 30.0]
+            
+        pc.poll()
         
-        rospy.loginfo(a)
+        if pc.home():
+            break
+        
+        if read:
+            if count == num - 1:
+                break
+            C = data[base + str(count)]
+        else:
+            # x
+            # y
+            # z
+            # wrist_degree
+            # wrist_rotate_degree
+            # open
+            # reward
+            C = [
+                -pc.RX(),    # X
+                pc.RY(),    # Y
+                0,          # Z
+                pc.LY(),    # wrist_degree
+                pc.LT(),    # wrise_rotate_degree
+                pc.RT(),    # open
+                0           # reward
+            ]
+            data[base + str(count)] = C
+        
+        
+        
+        rospy.loginfo(C)
         
         msg = Float32MultiArray()
-        msg.data = a
+        msg.data = C
         
         pub.publish(msg)
         
+        count = count + 1
+        
         rate.sleep()
+        
+    if not read:
+        data['num'] = count
+        print "Writing to: {}".format(fname)
+        config.write(fname,data)
 
 if __name__ == '__main__':
     try:
