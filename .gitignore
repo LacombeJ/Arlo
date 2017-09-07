@@ -1,0 +1,5 @@
+
+# ARLO gitignore
+
+# Python compiled binaries
+*.pyc

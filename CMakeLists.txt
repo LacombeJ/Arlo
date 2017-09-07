@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(arlo_al5d)
+project(arlo)
 
 
 find_package(catkin REQUIRED COMPONENTS
@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
 )
 
+catkin_python_setup()
 
 ## Generate messages in the 'msg' folder
 # add_message_files(
@@ -38,7 +39,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES arlo_al5d
+#  LIBRARIES arlo
 #  CATKIN_DEPENDS roscpp rospy std_msgs
 #  DEPENDS system_lib
 )
@@ -51,7 +52,7 @@ target_link_libraries(al5d_sub ${catkin_LIBRARIES})
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/arlo_al5d.cpp
+#   src/${PROJECT_NAME}/arlo.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -62,7 +63,7 @@ target_link_libraries(al5d_sub ${catkin_LIBRARIES})
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/arlo_al5d_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/arlo_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

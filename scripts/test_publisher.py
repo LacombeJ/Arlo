@@ -15,7 +15,7 @@ def main():
     
     pc = ps4.PS4Controller()
     
-    read = True
+    read = False
     fname = "temp_ald5.json"
     base = "c"
     data = {}
