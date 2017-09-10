@@ -10,11 +10,18 @@ import pygame
 
 #Controller Module Interface
 class ControllerModule(object):
-    #Return (buttons, axes, dpad) for PS4Controller
+
+    # Creates controller module, returns True if created, False if failed
+    def create(self):
+        pass
+    
+    # Return (buttons, axes, dpad) for PS4Controller
     def poll(self):
         pass
-    #Cleans up
-    def quit(self):
+        
+    
+    # Destroys controller module
+    def destroy(self):
         pass
 
 
@@ -23,8 +30,15 @@ class PygameModule(ControllerModule):
 
     def __init__(self):
         pygame.init()
+        
+    def create(self):
+        count = pygame.joystick.get_count()
+        if count == 0:
+            return False
+        
         self._joystick = pygame.joystick.Joystick(0)
         self._joystick.init()
+        return True
         
     def poll(self):
         pygame.event.pump()
@@ -34,14 +48,14 @@ class PygameModule(ControllerModule):
         hats = [hats_array[0][0], hats_array[0][1]]
         return (buttons, axes, hats)
         
-    def quit(self):
+    def destroy(self):
         pygame.quit()
+
 
 #PS4Controller Class
 class PS4Controller(object):
 
     def __init__(self):
-    
         # init buttons
         # value: 0, 1
         # 0 released, 1 down
@@ -81,9 +95,17 @@ class PS4Controller(object):
         self._DX = 0
         self._DY = 1
         self._dpad = [0 for i in range(2)]
-        
+    
+    
+    def create(self):
         # Controller Module
         self._cm = PygameModule()
+        
+        created = self._cm.create()
+        if not created:
+            return False
+        
+        return True
         
     
     # Polls input, should be called every frame/update
@@ -91,8 +113,8 @@ class PS4Controller(object):
         self._buttons, self._axes, self._dpad = self._cm.poll()
         
     # Calls cm quit
-    def quit(self):
-        self._cm.quit()
+    def destroy(self):
+        self._cm.destroy()
     
     
     # Buttons

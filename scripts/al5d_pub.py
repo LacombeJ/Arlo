@@ -9,13 +9,16 @@ import arlo.input.ps4 as ps4
 def main():
 
     pub = rospy.Publisher('al5d', Float32MultiArray, queue_size=10)
-    rospy.init_node('test_pub', anonymous=True)
+    rospy.init_node('al5d_pub', anonymous=True)
     
     rate = rospy.Rate(10)
     
     pc = ps4.PS4Controller()
+    created = pc.create()
+    if not created:
+        print "Error finding PS4 controller"
     
-    read = False
+    read = True
     fname = "temp_ald5.json"
     base = "c"
     data = {}
@@ -67,6 +70,8 @@ def main():
         count = count + 1
         
         rate.sleep()
+        
+    pc.destroy()
         
     if not read:
         data['num'] = count
