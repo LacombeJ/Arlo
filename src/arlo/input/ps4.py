@@ -7,6 +7,42 @@ Jonathan
 
 import pygame
 
+# Buttons
+# value: 0, 1
+# 0 released, 1 down
+X         = 0
+CIRCLE    = 1
+TRIANGLE  = 2
+SQUARE    = 3
+L1        = 4
+R1        = 5
+L2        = 6
+R2        = 7
+OPTIONS   = 8
+SHARE     = 9
+HOME      = 10 #Also center pad
+L3        = 11
+R3        = 12
+
+# Axes
+# value: from -1 to 1
+# Analog (X) -> 1 is right, -1 is left
+# Analog (Y) -> 1 is down, -1 is up
+# Triggers   -> -1 is released, 1 is down, 0 is centered
+LX = 0
+LY = 1
+LT = 2
+RX = 3
+RY = 4
+RT = 5
+  
+# DPad
+# value: -1, 0, 1
+# 0 is released
+# DX -> 1 is right, -1 is left
+# DY -> 1 is up, -1 is down    
+DX = 0
+DY = 1
 
 #Controller Module Interface
 class ControllerModule(object):
@@ -25,10 +61,43 @@ class ControllerModule(object):
 
 
 #Pygame Module
+
+def config0(buttons,axes,hats):
+    return buttons, axes, hats
+
+def config1(buttons,axes,hats):
+    nbuttons = [i for i in range(13)]
+    nbuttons[X]         = buttons[1]
+    nbuttons[CIRCLE]    = buttons[2]
+    nbuttons[TRIANGLE]  = buttons[3]
+    nbuttons[SQUARE]    = buttons[0]
+    nbuttons[L1]        = buttons[4]
+    nbuttons[R1]        = buttons[5]
+    nbuttons[L2]        = buttons[6]
+    nbuttons[R2]        = buttons[7]
+    nbuttons[OPTIONS]   = buttons[8]
+    nbuttons[SHARE]     = buttons[9]
+    nbuttons[HOME]      = 1 if buttons[12]==1 or buttons[13]==1 else 0
+    nbuttons[L3]        = buttons[11]
+    nbuttons[R3]        = buttons[10]
+    naxes = [i for i in range(6)]
+    naxes[LX] = 0
+    naxes[LY] = 1
+    naxes[LT] = 3
+    naxes[RX] = 2
+    naxes[RY] = 5
+    naxes[RT] = 4
+    return nbuttons, naxes, hats
+    
+
 class PygameModule(ControllerModule):
 
-    def __init__(self):
+    def __init__(self, config=0):
         pygame.init()
+        if config == 0:
+            self._config = config0
+        elif config == 1:
+            self._config = config1
         
     def create(self):
         count = pygame.joystick.get_count()
@@ -48,10 +117,11 @@ class PygameModule(ControllerModule):
         axes = [self._joystick.get_axis(i) for i in range(self._joystick.get_numaxes())]
         hats_array = [self._joystick.get_hat(i) for i in range(self._joystick.get_numhats())]
         hats = [hats_array[0][0], hats_array[0][1]]
+        buttons, axes, hats = self._config(buttons, axes, hats)
         self._handle_triggers(axes)
-        return (buttons, axes, hats)
+        return buttons, axes, hats
     
-    # For pygame joysticks (or PS4 controllers in general), the left and right trigger values
+    # For pygame joysticks ( for or PS4 controllers in general), the left and right trigger values
     # are set to 0.0 even though they are -1.0 at rest (not pressed).
     # After pressing a trigger for the first time, the correct value is set but otherwise,
     # it stays at 0.0
@@ -77,51 +147,17 @@ class PygameModule(ControllerModule):
 #PS4Controller Class
 class PS4Controller(object):
 
-    def __init__(self):
-        # init buttons
-        # value: 0, 1
-        # 0 released, 1 down
-        self._X         = 0
-        self._CIRCLE    = 1
-        self._TRIANGLE  = 2
-        self._SQUARE    = 3
-        self._L1        = 4
-        self._R1        = 5
-        self._L2        = 6
-        self._R2        = 7
-        self._OPTIONS   = 8
-        self._SHARE     = 9
-        self._HOME      = 10 #Also center pad
-        self._L3        = 11
-        self._R3        = 12
+    def __init__(self,config=0):
+        self._config = config
+        
         self._buttons = [0 for i in range(13)]
-        
-        # init axes
-        # value: from -1 to 1
-        # Analog (X) -> 1 is right, -1 is left
-        # Analog (Y) -> 1 is down, -1 is up
-        # Triggers   -> -1 is released, 1 is down, 0 is centered
-        self._LX = 0
-        self._LY = 1
-        self._LT = 2
-        self._RX = 3
-        self._RY = 4
-        self._RT = 5
         self._axes = [0 for i in range(6)]
-        
-        # init dpad
-        # value: -1, 0, 1
-        # 0 is released
-        # DX -> 1 is right, -1 is left
-        # DY -> 1 is up, -1 is down
-        self._DX = 0
-        self._DY = 1
         self._dpad = [0 for i in range(2)]
     
     
     def create(self):
         # Controller Module
-        self._cm = PygameModule()
+        self._cm = PygameModule(self._config)
         
         created = self._cm.create()
         if not created:
@@ -141,44 +177,44 @@ class PS4Controller(object):
     
     # Buttons
     
-    def x(self): return self._buttons[self._X]
-    def circle(self): return self._buttons[self._CIRCLE]
-    def triangle(self): return self._buttons[self._TRIANGLE]
-    def square(self): return self._buttons[self._SQUARE]
+    def x(self): return self._buttons[X]
+    def circle(self): return self._buttons[CIRCLE]
+    def triangle(self): return self._buttons[TRIANGLE]
+    def square(self): return self._buttons[SQUARE]
     
-    def L1(self): return self._buttons[self._L1]
-    def R1(self): return self._buttons[self._R1]
-    def L2(self): return self._buttons[self._L2]
-    def R2(self): return self._buttons[self._R2]
+    def L1(self): return self._buttons[L1]
+    def R1(self): return self._buttons[R1]
+    def L2(self): return self._buttons[L2]
+    def R2(self): return self._buttons[R2]
     
-    def options(self): return self._buttons[self._OPTIONS]
-    def share(self): return self._buttons[self._SHARE]
-    def home(self): return self._buttons[self._HOME]
+    def options(self): return self._buttons[OPTIONS]
+    def share(self): return self._buttons[SHARE]
+    def home(self): return self._buttons[HOME]
     
-    def L3(self): return self._buttons[self._L3]
-    def R3(self): return self._buttons[self._R3]
+    def L3(self): return self._buttons[L3]
+    def R3(self): return self._buttons[R3]
     
     
     # Axes
     
-    def LX(self): return self._axes[self._LX]
-    def LY(self): return self._axes[self._LY]
-    def LT(self): return self._axes[self._LT]
+    def LX(self): return self._axes[LX]
+    def LY(self): return self._axes[LY]
+    def LT(self): return self._axes[LT]
     
-    def RX(self): return self._axes[self._RX]
-    def RY(self): return self._axes[self._RY]
-    def RT(self): return self._axes[self._RT]
+    def RX(self): return self._axes[RX]
+    def RY(self): return self._axes[RY]
+    def RT(self): return self._axes[RT]
     
     
     # Dpad
     
-    def DX(self): return self._dpad[self._DX]
-    def DY(self): return self._dpad[self._DY]
+    def DX(self): return self._dpad[DX]
+    def DY(self): return self._dpad[DY]
     
-    def up(self): return 1 if self._dpad[self._DY] == 1 else 0
-    def down(self): return 1 if self._dpad[self._DX] == -1 else 0
-    def right(self): return 1 if self._dpad[self._DY] == 1 else 0
-    def left(self): return 1 if self._dpad[self._DX] == -1 else 0
+    def up(self): return 1 if self._dpad[DY] == 1 else 0
+    def down(self): return 1 if self._dpad[DX] == -1 else 0
+    def right(self): return 1 if self._dpad[DY] == 1 else 0
+    def left(self): return 1 if self._dpad[DX] == -1 else 0
     
 
 
