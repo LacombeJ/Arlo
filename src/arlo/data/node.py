@@ -12,11 +12,12 @@ import arlo.utils.io as io
 
 
 # Loads or creates a directory and meta data
+# Returns node, new if directory is created
 def load(name,translate=None):
     if not io.dir_exists(name):
         io.make_dir(name,False)
-        return _Node(name,translate,False,'')
-    return _Node(name,translate,True,'')
+        return _Node(name,translate,False,''), True
+    return _Node(name,translate,True,''), False
 
 
 class _Node(object):
@@ -45,16 +46,26 @@ class _Node(object):
     def set(self,key,value):
         self._config[key] = value
     
+    # Adds multiple key, value pairs
+    def setValues(self,configs):
+        for key in configs:
+            self._config[key] = configs[key]
+    
     # Saves meta data
     def save(self):
         config.write(self._config_path, self._config)
     
     # Loads or creates a sub directory and meta data
+    # Returns node, new if directory is created
     def load(self,name):
         if not io.dir_exists(self._node_path + name):
             io.make_dir(self._node_path + name,False)
-            return _Node(name,self._translate,False,self._node_path)
-        return _Node(name,self._translate,True,self._node_path)
+            return _Node(name,self._translate,False,self._node_path), True
+        return _Node(name,self._translate,True,self._node_path), False
+        
+    # Returns the path relative to the parent node
+    def relative_path(self):
+        return self._name
         
     # Returns the path of this node
     def path(self):

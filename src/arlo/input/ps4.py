@@ -93,13 +93,13 @@ def config1(buttons,axes,hats):
 class PygameModule(ControllerModule):
 
     def __init__(self, config=0):
-        pygame.init()
         if config == 0:
             self._config = config0
         elif config == 1:
             self._config = config1
         
     def create(self):
+        pygame.init()
         count = pygame.joystick.get_count()
         if count == 0:
             return False
@@ -141,6 +141,7 @@ class PygameModule(ControllerModule):
                 axes[5] = -1.0
         
     def destroy(self):
+        self._joystick.quit()
         pygame.quit()
 
 
@@ -164,6 +165,7 @@ class PS4Controller(object):
             return False
         
         return True
+        
         
     
     # Polls input, should be called every frame/update

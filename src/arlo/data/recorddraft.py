@@ -10,10 +10,13 @@ import rospy
 from std_msgs.msg import Float32MultiArray
 import cv2
 
+import node
+
 import _recording_config as rc
 
 import arlo.input.ps4 as ps4
 import arlo.utils.config as config
+import arlo.utils.ext as ext
 import arlo.utils.log as log
 import arlo.utils.term as term
 
@@ -33,8 +36,11 @@ def prop(key,rc_config,config_set):
 
 # Loads the config file and properties in supporting config files
 def load():
+    recording_path = rc.recording_path()
+    
     rc_config = rc.read_or_create_config()
     config_set = rc.config_set()
+    
     user,       user_prop       = prop('user',rc_config,config_set)
     task,       task_prop       = prop('task',rc_config,config_set)
     camera,     camera_prop     = prop('camera',rc_config,config_set)
@@ -52,13 +58,14 @@ def load():
     if ps4_config   == 'None' : ps4_config  = None
     
     config_data = {
-        'user'          : user,
-        'task'          : task,
-        'camera'        : camera,
-        'control'       : control,
-        'log_prop'      : log_prop,
-        'save_on_exit'  : save_on_exit,
-        'ps4_config_id' : ps4_config_prop
+        'recording_path'    : recording_path,
+        'user'              : user,
+        'task'              : task,
+        'camera'            : camera,
+        'control'           : control,
+        'log_prop'          : log_prop,
+        'save_on_exit'      : save_on_exit,
+        'ps4_config_id'     : ps4_config_prop
     }
     
     return config_data
@@ -67,6 +74,7 @@ def load():
 
 config_data = load()
 
+recording_path  = config_data['recording_path']
 user            = config_data['user']
 task            = config_data['task']
 camera          = config_data['camera']
@@ -77,10 +85,13 @@ ps4_config_id   = config_data['ps4_config_id']
 
 logger = create_logger(log_prop)
 
+
+
 # Recording Module Interface
 class RecordingModule(object):
 
-    def start(self):
+    # Prepares the recording module
+    def start(self,save_path):
         pass
         
     # Return False if should stop all recording
@@ -95,12 +106,38 @@ class RecordingModule(object):
     def finish(self):
         False, False, False
 
+    # Saves supporting files and adds metadata to save_data
+    def save(self,save_data):
+        pass
 
 
+
+# Camera Module
 class CameraModule(RecordingModule):
     
-    def start(self):
+    def start(self,save_path):
         self._cap = cv2.VideoCapture(0)
+        
+        self._exited = False
+        self._save_prop = False
+        self._save = False
+        
+        self._path = save_path
+        self._file = 'video.avi'
+        self._time_file = 'video_frames.json'
+        
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        fps = 30.0
+        self._width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self._height = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        self._out = cv2.VideoWriter(self._path+self._file, fourcc, fps, (self._width,self._height))
+        
+        self._first_time = None
+        self._first_frame = True
+        self._frame_count = 0
+        
+        self._frame_times = []
         
         if self._cap.isOpened():
         
@@ -108,8 +145,14 @@ class CameraModule(RecordingModule):
                 self._frame_name = "Recording Window"
                 
                 print 'Press '+term.BOLD+term.CYAN+'ESC'+term.END+' in {} to finish.'.format(self._frame_name)
+                print 'Press '+term.BOLD+term.GREEN+'S'+term.END+' in {} to finish.'.format(self._frame_name)
+                print 'Press '+term.BOLD+term.RED+'N'+term.END+' in {} to finish.'.format(self._frame_name)
+        
             else:
                 logger.log('warn','Set logging level to debug to view recording video')
+        else:
+            logger.log('error','Video capture failed - no video capture device found')
+            quit()
     
     def loop(self):
     
@@ -118,10 +161,36 @@ class CameraModule(RecordingModule):
         if ret == False:
             return False
     
+        self._out.write(frame)
+        
+        if self._first_frame:
+            self._first_time = ext.datetime.now()
+            self._first_frame = False
+            frame_time = ext.datetime.now() - ext.datetime.now()
+        else:
+            frame_time = ext.datetime.now() - self._first_time
+        
+        self._frame_count = self._frame_count + 1
+        self._frame_times.append(ext.delta_ms(frame_time))
+    
         if logger.level('debug'):
-            if cv2.waitKey(1) & 0xFF == 27:
+            wait_key = cv2.waitKey(1) & 0xFF
+            
+            if wait_key == 27: #ESC
                 return False
                 
+            if wait_key == ord('s'):
+                self._exited = True
+                self._save_prop = True
+                self._save = True
+                return False
+                
+            if wait_key == ord('n'):
+                self._exited = True
+                self._save_prop = True
+                self._save = False
+                return False
+            
             cv2.imshow(self._frame_name,frame)
     
         return True
@@ -129,12 +198,29 @@ class CameraModule(RecordingModule):
     def finish(self):
         self._cap.release()
         cv2.destroyAllWindows()
-        return False, False, False
+        return self._exited, self._save_prop, self._save
        
+    def save(self, data):
+        self._out.release()
+        
+        time_file_data = {
+            "data" : self._frame_times
+        }
+        config.write(self._path+self._time_file,time_file_data)
+        
+        data['video_file'] = self._file
+        data['video_datetime'] = ext.pack_datetime(self._first_time)
+        data['video_width'] = self._width
+        data['video_height'] = self._height
+        data['video_frame_count'] = self._frame_count
+        data['video_frame_times'] = self._time_file
+        data['video_duration'] = self._frame_times[-1]
 
+
+# Control Module
 class ControlModule(RecordingModule):
 
-    def start(self):
+    def start(self,save_path):
         
         self._exited = False
         self._save_prop = False
@@ -153,7 +239,7 @@ class ControlModule(RecordingModule):
             quit()
             
         print 'Press '+term.BOLD+term.CYAN+'HOME'+term.END+' on the PS4 controller to finish.'
-        print 'Press '+term.BOLD+term.PURPLE+'SQUARE'+term.END+' on the PS4 controller to save and exit.'
+        print 'Press '+term.BOLD+term.GREEN+'TRIANGLE'+term.END+' on the PS4 controller to save and exit.'
         print 'Press '+term.BOLD+term.RED+'CIRCLE'+term.END+' on the PS4 controller to discard and exit.'
         
     def loop(self):
@@ -165,7 +251,7 @@ class ControlModule(RecordingModule):
         if self._pc.home():
             return False
             
-        if self._pc.square():
+        if self._pc.triangle():
             self._exited = True
             self._save_prop = True
             self._save = True
@@ -198,17 +284,71 @@ class ControlModule(RecordingModule):
             
         
     def finish(self):
+        #Currently an error when destroy is called,
+        #segmentation fault causes by Pygame
+        #self._pc.destroy()
         return self._exited, self._save_prop, self._save
+
+    def save(self, data):
+        pass
+
+
 
 camera_module = CameraModule()
 control_module = ControlModule()
 
-# RECORD
-def record():
 
+
+# Translator
+def translate(node,otype,value):
+    if otype=='video':
+        return None
+    if otype=='controls':
+        return None
+    return None
+
+
+# RECORD
+def record_session():
+
+    root, new = node.load(recording_path, translate)
+    if new:
+        root.set('record_count',0)
+        root.set('record_directories',[])
+        root.save()
+        
+    record_count = root.get('record_count')
+    record_directories = root.get('record_directories')
+    
+    sub, _ = root.load('recording{}'.format(record_count))
+    sub_path = sub.path()
+    
+    sub_data = {
+        'user' : user,                  #user who recorded
+        'task' : task,                  #task recorded
+        'camera' : camera,              #camera configuration
+        'control' : control,            #control configuration
+        
+        'video_file' : None,            #video file name
+        'video_datetime' : None,        #datetime object of first frame
+        'video_width' : None,           #width of video frames
+        'video_height' : None,          #height of video frames
+        'video_frame_count' : None,     #number of video frames
+        'video_frame_times' : None,     #array of ms time difference from first frame for each frame
+        'video_duration' : None,        #duration of video = frame_times[-1]
+        
+        'control_file' : None,          #control file name
+        'control_frame_count' : None,   #number of controls recorded
+        'control_frame_times' : None,   #ms time differences from start
+        'control_duration' : None,      #duration of controls recorded
+        
+        'annotation' : None,            #Can be anything, (ex: 'success','failure',array of data)
+        'comments' : None               #Any extra comments for video
+    }
+    
     # Add recording modules
     modules = []
-    if camera==None:
+    if camera == None:
         logger.log('warn','Camera setting is None, no video will be recorded')
     else:
         modules.append(camera_module)
@@ -218,11 +358,12 @@ def record():
         modules.append(control_module)
     
     # Start recording
+    logger.log('info','Recording index: {}'.format(record_count))
     print 'Starting to record...'
     print 'Press '+term.BOLD+term.RED+'CTRL+C'+term.END+' in terminal to stop and discard video.'
     
     for module in modules:
-        module.start()
+        module.start(sub_path)
         
     try:
         loop = True
@@ -240,7 +381,7 @@ def record():
     
     b_save_prop = False
     b_save = False
-        
+    
     for module in modules:
         m_exited, m_save_prop, m_save = module.finish()
         if m_exited:
@@ -262,17 +403,28 @@ def record():
             
     # Save recording
     if save:
+        for module in modules:
+            module.save(sub_data)
+        sub.setValues(sub_data)
+        sub.save()
+        
+        record_count += 1
+        record_directories.append(sub.relative_path())
+        root.set('record_count',record_count)
+        root.set('record_directories',record_directories)
+        root.save()
+        
         print 'Recording saved.'
     else:
         print 'Recording discarded.'
 
 
 # CONFIG
-def config():
-    pass
+def config_session():
+    rc.edit_config()
 
 # PLAYBACK
-def playback():
+def playback_session():
     pass
 
 

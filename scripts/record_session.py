@@ -2,7 +2,7 @@
 
 import arlo.data.recorddraft as rec
 
-rec.record()
+rec.record_session()
 
 
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-import arlo.data.record as record
+import arlo.data.recorddraft as record
 
 
-record.edit_config()
+record.config_session()
 
 
