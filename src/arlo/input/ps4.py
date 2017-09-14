@@ -18,7 +18,6 @@ class ControllerModule(object):
     # Return (buttons, axes, dpad) for PS4Controller
     def poll(self):
         pass
-        
     
     # Destroys controller module
     def destroy(self):
@@ -38,6 +37,9 @@ class PygameModule(ControllerModule):
         
         self._joystick = pygame.joystick.Joystick(0)
         self._joystick.init()
+        
+        self._lt_pressed = False
+        self._rt_pressed = False
         return True
         
     def poll(self):
@@ -46,7 +48,27 @@ class PygameModule(ControllerModule):
         axes = [self._joystick.get_axis(i) for i in range(self._joystick.get_numaxes())]
         hats_array = [self._joystick.get_hat(i) for i in range(self._joystick.get_numhats())]
         hats = [hats_array[0][0], hats_array[0][1]]
+        self._handle_triggers(axes)
         return (buttons, axes, hats)
+    
+    # For pygame joysticks (or PS4 controllers in general), the left and right trigger values
+    # are set to 0.0 even though they are -1.0 at rest (not pressed).
+    # After pressing a trigger for the first time, the correct value is set but otherwise,
+    # it stays at 0.0
+    #
+    # This function handles setting the trigger values to -1.0 by default until another value
+    # is detected.
+    def _handle_triggers(self,axes):
+        if self._lt_pressed == False:
+            if axes[2] != 0.0:
+                self._lt_pressed = True
+            else:
+                axes[2] = -1.0
+        if self._rt_pressed == False:
+            if axes[5] != 0.0:
+                self._rt_pressed = True
+            else:
+                axes[5] = -1.0
         
     def destroy(self):
         pygame.quit()

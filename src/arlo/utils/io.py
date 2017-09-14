@@ -17,5 +17,7 @@ def make_dir(path,output=True):
         return True
     return False
     
+def dir_exists(path):
+    return os.path.exists(path)
     
 

@@ -11,14 +11,16 @@ def main():
     pub = rospy.Publisher('al5d', Float32MultiArray, queue_size=10)
     rospy.init_node('al5d_pub', anonymous=True)
     
-    rate = rospy.Rate(10)
+    rate = rospy.Rate(60)
     
     pc = ps4.PS4Controller()
     created = pc.create()
     if not created:
         print "Error finding PS4 controller"
     
-    read = True
+    read = False
+    write = False
+    
     fname = "temp_ald5.json"
     base = "c"
     data = {}
@@ -73,7 +75,7 @@ def main():
         
     pc.destroy()
         
-    if not read:
+    if write:
         data['num'] = count
         print "Writing to: {}".format(fname)
         config.write(fname,data)

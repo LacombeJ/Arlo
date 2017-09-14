@@ -8,7 +8,6 @@ This module contains private utility functions to handle recording meta files
 
 
 import arlo.utils.config as au_config
-import arlo.utils.term as term
 
 
 

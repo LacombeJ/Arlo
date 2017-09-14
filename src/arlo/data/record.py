@@ -16,6 +16,8 @@ import arlo.utils.term as term
 
 import cv2
 
+def get_path():
+    return rc.get_path()
 
 def read_config():
     return rc.read_config()
@@ -31,7 +33,7 @@ def video_to_images(file_path):
     images = []
     while (cap.isOpened()):
         ret, frame = cap.read()
-        if ret = False:
+        if ret == False:
             break
         images.append(frame)
     cap.release()
@@ -67,11 +69,11 @@ class BasicVideoIO(VideoIO):
         pass
         
     def _get_meta_path(self):
-        return self._config['recording_path'] + 'meta.json'
+        return get_path() + 'meta.json'
     
     
     def _get_sub_path(self, index):
-        return self._config['recording_path'] + self._meta['sub_name'] + str(index) +'/'
+        return get_path() + self._meta['sub_name'] + str(index) +'/'
         
     def _get_next_path(self):
         return self._get_sub_path(self._meta['sub_count'])
@@ -282,7 +284,7 @@ class BasicRecorder(BasicVideoIO):
     def start(self):
         self._config = read_or_create_config()
         
-        io.make_dir(self._config['recording_path'])
+        io.make_dir(get_path())
         
         self._meta_path = self._get_meta_path()
         self._meta = rm.read_or_create_meta(self._init_meta(), self._meta_path)
@@ -314,68 +316,71 @@ class BasicRecorder(BasicVideoIO):
         
         frame_times = []
         
-        print 'Recording video...'
+        # Video capture device found
+        if cap.isOpened():
         
-        print 'Press '+term.BOLD+term.CYAN+'ESC'+term.END+' in Recording Window focus to exit',
-        print 'and save video'
+            print 'Recording video...'
         
-        print 'Press '+term.BOLD+term.CYAN+'CTRL+C'+term.END+' in terminal to discard video'
-        
-        while (cap.isOpened()):
-            ret, frame = cap.read()
+            print 'Press '+term.BOLD+term.CYAN+'ESC'+term.END+' in Recording Window focus to exit',
+            print 'and save video'
             
-            if ret==True:
-            
-                out.write(frame)
-                if first_frame:
-                    first_time = ext.datetime.now()
-                    first_frame = False
-                    frame_time = first_time - first_time
+            print 'Press '+term.BOLD+term.CYAN+'CTRL+C'+term.END+' in terminal to discard video'
+        
+            while (cap.isOpened()):
+                ret, frame = cap.read()
+                
+                if ret==True:
+                
+                    out.write(frame)
+                    if first_frame:
+                        first_time = ext.datetime.now()
+                        first_frame = False
+                        frame_time = first_time - first_time
+                    else:
+                        frame_time = ext.datetime.now() - first_time
+                    
+                    frame_count = frame_count + 1
+                    frame_times.append(ext.delta_ms(frame_time))
+                    cv2.imshow(frame_name,frame)
+                    
+                    #if esc is pressed
+                    if cv2.waitKey(1) & 0xFF == 27:
+                        break
                 else:
-                    frame_time = ext.datetime.now() - first_time
-                
-                frame_count = frame_count + 1
-                frame_times.append(ext.delta_ms(frame_time))
-                cv2.imshow(frame_name,frame)
-                
-                #if esc is pressed
-                if cv2.waitKey(1) & 0xFF == 27:
                     break
-            else:
-                break
-                
-        
-        sub_meta = self._init_sub_meta()
+                    
+            sub_meta = self._init_sub_meta()
 
-        sub_meta['type'] = self._meta['type']
-        sub_meta['file_name'] = self._get_next_video_name()
-        sub_meta['file_ext'] = self._meta['file_ext']
-        sub_meta['datetime'] = ext.pack_datetime(first_time)
-        sub_meta['user'] = self._config['user']
-        sub_meta['task'] = self._config['task']
-        sub_meta['width'] = width
-        sub_meta['height'] = height
-        sub_meta['frame_count'] = frame_count
-        sub_meta['frame_times'] = frame_times
-        sub_meta['duration'] = frame_times[-1]
+            sub_meta['type'] = self._meta['type']
+            sub_meta['file_name'] = self._get_next_video_name()
+            sub_meta['file_ext'] = self._meta['file_ext']
+            sub_meta['datetime'] = ext.pack_datetime(first_time)
+            sub_meta['user'] = self._config['user']
+            sub_meta['task'] = self._config['task']
+            sub_meta['width'] = width
+            sub_meta['height'] = height
+            sub_meta['frame_count'] = frame_count
+            sub_meta['frame_times'] = frame_times
+            sub_meta['duration'] = frame_times[-1]
+            
+            self._meta['sub_count'] = self._meta['sub_count'] + 1
+            rm.write_meta_unsafe(self._meta, self._meta_path)
+            
+            rm.write_meta_unsafe(sub_meta, sub_meta_path)
+            
+            print "Created video: '{}'".format(sub_video_path)
+              
+        # No video capture device found    
+        else:
         
-        self._meta['sub_count'] = self._meta['sub_count'] + 1
-        rm.write_meta_unsafe(self._meta, self._meta_path)
-        
-        rm.write_meta_unsafe(sub_meta, sub_meta_path)
-        
+            print term.RED + "Video capture failed - no video capture device found" + term.END
         
         cap.release()
         out.release()
-        print "Created video: '{}'".format(sub_video_path)
+        
         cv2.destroyAllWindows()
         
         
-
-
-
-
-
 
 
 

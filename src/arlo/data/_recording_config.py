@@ -12,9 +12,51 @@ import arlo.utils.term as term
 import arlo.utils.ext as ext
 
 
-_recording_config = 'recording.json'
 
 
+# ===============================================================================
+
+config_file = 'config.json'
+
+#Format of a sample config file
+'''
+{
+    "recording_config": "recording.json", 
+    "recording_path": "Recording/",
+    "config_path": "Config/",
+    "config_set": [
+        ["user",    "users",    "users.json"],
+        ["task",    "tasks",    "tasks.json"],
+        ...
+    ]
+}
+'''
+
+def _prepare_config():
+    
+    config_json =  au_config.read(config_file)
+    
+    if config_json == None:
+        print term.RED + "File '{}' not found".format(config_file) + term.END
+        
+    recording_config = config_json['recording_config']
+    recording_path = config_json['recording_path']
+    config_path = config_json['config_path']
+    config_set = config_json['config_set']
+    for config in config_set:
+        config_set[config][1] = config_path + config_set[config][1]
+    return recording_config, recording_path, config_path, config_set
+
+_recording_config, _recording_path, _config_path, _config_set = _prepare_config()
+
+# ===============================================================================
+
+
+def recording_path():
+    return _recording_path
+    
+def config_set():
+    return _config_set
 
 '''
 Attempts to read recording.json, if not found returns None
@@ -69,15 +111,18 @@ def edit_config():
 #Prints output in blue then value in white
 def _output_value(output,value,white=True):
     if white:
-        term.print_blue_white(output,value)
+        _pbw(output,value)
     else:
-        term.print_blue_purple(output,value)
+        _pbp(output,value)
         
 
 #Reads json config file and asks user to enter a value from the values in the config
-def _read_config_enter_attrib(name, set_name, json_file, default):
-    _config = au_config.read(json_file)    
-    print "Read '{}'".format(json_file)
+def _read_config_enter_attrib(name, set_name, json_file, default=None):
+    _config = au_config.read(json_file)
+    if _config == None:
+        print term.RED + "Error reading '{}'".format(json_file) + term.END
+    else:
+        print "Read '{}'".format(json_file)
     config_set = [i for i in _config]
     _output_value("Available {}: ".format(set_name),ext.list_format(config_set))
     
@@ -130,22 +175,15 @@ def _create_config():
     print "Attempting to create config file ..."
     print "Leave entries empty to set value to default" + term.END
     
-    user = _enter_attrib('user','users','users.json')
-    task = _enter_attrib('task','tasks','tasks.json')
-    recording_path = _enter_path('recording','Recording/')
-    raw_data_path = _enter_path('raw data','Raw_data/')
-    data_path = _enter_path('data','Data/')
-
-    rconfig = {
-        'user' : user,
-        'task' : task,
-        'recording_path' : recording_path,
-        'raw_data_path' : raw_data_path,
-        'data_path' : data_path
-    }
+    rconfig = {}
     
+    for value in _config_set:
+        rconfig[value] = _enter_attrib(value,_config_set[value][0],_config_set[value][1])
+        
     au_config.write(_recording_config,rconfig)
     print "Wrote config to '{}'".format(_recording_config)
+    
+    return rconfig
 
 
 
@@ -154,27 +192,14 @@ def _create_config():
 def _check_config(rconfig):
     print "Checking config file..."
 
-    #User
-    user = rconfig.get('user')
-    rconfig['user'], v0 = _valid_attrib(user,'user','users','users.json')
-
-    #Task
-    task = rconfig.get('task')
-    rconfig['task'], v1 = _valid_attrib(task,'task','tasks','tasks.json')
-
-    #Recording path
-    recording_path = rconfig.get('recording_path')
-    rconfig['recording_path'], v2 = _valid_path(recording_path,'recording','Recording/')
-
-    #Raw data path
-    raw_data_path = rconfig.get('raw_data_path')
-    rconfig['raw_data_path'], v3 = _valid_path(raw_data_path,'raw data','Raw_data/')
-
-    #Data path
-    data_path = rconfig.get('data_path')
-    rconfig['data_path'], v4 = _valid_path(data_path,'data','Data/')
-
-    if v0 and v1 and v2 and v3 and v4: #Valid, rconfig is not changed, no need to return rconfig
+    changed = False
+    for value in _config_set:
+        prev_value = rconfig.get(value)
+        rconfig[value], valid = _valid_attrib(prev_value,value,_config_set[value][0],_config_set[value][1])
+        if not valid:
+            changed = True
+    
+    if not changed: #Valid, rconfig is not changed, no need to return rconfig
         return None
 
     return rconfig #Was invalid, rconfig is updated
@@ -183,7 +208,7 @@ def _check_config(rconfig):
 def _valid_attrib(attrib,name,set_name,json_file):
     valid = True
     if attrib == None:
-        print term.RED + 'Error finding {} in config file'.format(attrib)
+        print term.RED + 'Error finding {} in config file'.format(name)
         attrib = _read_config_enter_attrib(name,set_name,json_file)
         valid = False
     _output_attrib(name,attrib)
@@ -208,53 +233,38 @@ def _edit_config(rconfig):
     print "Reading config file..."
     print "Leave entries empty to set value to default" + term.END
     
-    #User
-    user = rconfig.get('user')
-    if user == None:
-        rconfig['user'], v0 = _valid_attrib(user,'user','users','users.json')
-    else:
-        rconfig['user'] = _enter_attrib('user','users','users.json',user)
-        v0 = rconfig['user'] == user
-
-    #Task
-    task = rconfig.get('task')
-    if task == None:
-        rconfig['task'], v1 = _valid_attrib(task,'task','tasks','tasks.json')
-    else:
-        rconfig['task'] = _enter_attrib('task','tasks','tasks.json',task)
-        v1 = rconfig['task'] == task
-
-    #Recording path
-    recording_path = rconfig.get('recording_path')
-    if recording_path == None:
-        rconfig['recording_path'], v2 = _valid_path(recording_path,'recording','Recording/')
-    else:
-        rconfig['recording_path'] = _enter_path('recording',recording_path)
-        v2 = rconfig['recording_path'] == recording_path
-
-    #Raw data path
-    raw_data_path = rconfig.get('raw_data_path')
-    if raw_data_path == None:
-        rconfig['raw_data_path'], v3 = _valid_path(raw_data_path,'raw data','Raw_data/')
-    else:
-        rconfig['raw_data_path'] = _enter_path('raw data',raw_data_path)
-        v3 = rconfig['raw_data_path'] == raw_data_path
-
-    #Data path
-    data_path = rconfig.get('data_path')
-    if data_path == None:
-        rconfig['data_path'], v4 = _valid_path(data_path,'data',data_path)
-    else:
-        rconfig['data_path'] = _enter_path('data','Data/')
-        v4 = rconfig['data_path'] == data_path
-
+    changed = False
+    for value in _config_set:
+        prev_value = rconfig.get(value)
+        if prev_value == None:
+            rconfig[value], valid = _valid_attrib(prev_value,value,_config_set[value][0],_config_set[value][1])
+        else:
+            rconfig[value] = _enter_attrib(value,_config_set[value][0],_config_set[value][1],prev_value)
+            valid = rconfig[value] == prev_value
+        if not valid:
+            changed = True
     
-    if v0 and v1 and v2 and v3 and v4: #Not edited, rconfig is not changed, no need to return rconfig
+    if not changed: #Not edited, rconfig is not changed, no need to return rconfig
         return None
 
     return rconfig #Was edited, rconfig is updated
 
 
+
+
+
+def _print2(SA,SB,a,b):
+    print SA+a + SB+b + term.END
+
+# Print blue then white text
+def _pbw(a,b):
+    _print2(term.BLUE,term.END,a,b)
+    
+# Print blue then purple text
+def _pbp(a,b):
+    _print2(term.BLUE,term.PURPLE,a,b)
+    
+    
 
 
 

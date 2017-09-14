@@ -19,11 +19,3 @@ UNDERLINE   = '\033[4m'
 END         = '\033[0m'
 
 
-def _print2(SA,SB,a,b):
-    print SA+a + SB+b + END
-
-def print_blue_white(a,b):
-    _print2(BLUE,END,a,b)
-    
-def print_blue_purple(a,b):
-    _print2(BLUE,PURPLE,a,b)
