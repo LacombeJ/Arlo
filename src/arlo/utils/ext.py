@@ -48,3 +48,30 @@ def delta_ms(timedelta):
     return timedelta.total_seconds() * 1000
     
 
+class TimeStamper(object):
+    
+    def __init__(self):
+        self._first_time = None
+        self._times = []
+        
+    def stamp(self):
+        if self._first_time == None:
+            self._first_time = datetime.now()
+            frame_diff = datetime.now() - datetime.now() #First frame diff should always be 0
+        else:
+            frame_diff = datetime.now() - self._first_time
+            
+        frame_diff_ms = delta_ms(frame_diff)
+        
+        self._times.append(frame_diff_ms)
+        
+    def initial(self):
+        return self._first_time
+        
+    def times_ms(self):
+        return self._times
+    
+    
+        
+        
+    

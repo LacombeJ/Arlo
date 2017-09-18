@@ -113,6 +113,7 @@ class RecordingModule(object):
 
 
 # Camera Module
+# Module for recording video from webcam
 class CameraModule(RecordingModule):
     
     def start(self,save_path):
@@ -176,16 +177,16 @@ class CameraModule(RecordingModule):
         if logger.level('debug'):
             wait_key = cv2.waitKey(1) & 0xFF
             
-            if wait_key == 27: #ESC
+            if wait_key == 27: #ESC to escape
                 return False
                 
-            if wait_key == ord('s'):
+            if wait_key == ord('s'): #S to save
                 self._exited = True
                 self._save_prop = True
                 self._save = True
                 return False
                 
-            if wait_key == ord('n'):
+            if wait_key == ord('n'): #N to discard
                 self._exited = True
                 self._save_prop = True
                 self._save = False
@@ -201,7 +202,7 @@ class CameraModule(RecordingModule):
         return self._exited, self._save_prop, self._save
        
     def save(self, data):
-        self._out.release()
+        self._out.release() #Video out file is saved
         
         time_file_data = {
             "data" : self._frame_times
@@ -218,6 +219,7 @@ class CameraModule(RecordingModule):
 
 
 # Control Module
+# Module for recording input from PS4 controller
 class ControlModule(RecordingModule):
 
     def start(self,save_path):
@@ -226,10 +228,17 @@ class ControlModule(RecordingModule):
         self._save_prop = False
         self._save = False
         
+        self._path = save_path
+        self._file = 'control.json'
+        self._time_file = 'control_frames.json'
+        
         self._pub = rospy.Publisher('al5d', Float32MultiArray, queue_size=10)
         rospy.init_node('al5d_pub', anonymous=True)
     
         self._rate = rospy.Rate(60)
+        
+        self._controls = []
+        self._time_stamper = ext.TimeStamper()
         
         self._pc = ps4.PS4Controller(ps4_config_id)
         created = self._pc.create()
@@ -248,16 +257,16 @@ class ControlModule(RecordingModule):
         if rospy.is_shutdown():
             return False
         
-        if self._pc.home():
+        if self._pc.home(): #Home to exit
             return False
             
-        if self._pc.triangle():
+        if self._pc.triangle(): #Triangle to save
             self._exited = True
             self._save_prop = True
             self._save = True
             return False
             
-        if self._pc.circle():
+        if self._pc.circle(): #Circle to discard
             self._exited = True
             self._save_prop = True
             self._save = False
@@ -272,9 +281,13 @@ class ControlModule(RecordingModule):
             self._pc.RT(),  # open
             0               # reward
         ]
+        self._controls.append(C)
+        
         
         msg = Float32MultiArray()
         msg.data = C
+        
+        self._time_stamper.stamp()
         
         self._pub.publish(msg)
         
@@ -290,7 +303,22 @@ class ControlModule(RecordingModule):
         return self._exited, self._save_prop, self._save
 
     def save(self, data):
-        pass
+        control_file_data = {
+            "data" : self._controls
+        }
+        config.write(self._path+self._file,control_file_data)
+    
+        frame_times = self._time_stamper.times_ms()
+        time_file_data = {
+            "data" : frame_times
+        }
+        config.write(self._path+self._time_file,time_file_data)
+        
+        data['control_file'] = self._file
+        data['control_datetime'] = ext.pack_datetime(self._time_stamper.initial())
+        data['control_frame_count'] = len(frame_times)
+        data['control_frame_times'] = self._time_file
+        data['control_duration'] = frame_times[-1]
 
 
 
@@ -301,9 +329,14 @@ control_module = ControlModule()
 
 # Translator
 def translate(node,otype,value):
+    #TODO jonathan fill, come up with video format
     if otype=='video':
         return None
-    if otype=='controls':
+    if otype=='video_frames':
+        return None
+    if otype=='control':
+        return None
+    if otype=='control_frames':
         return None
     return None
 
@@ -338,6 +371,7 @@ def record_session():
         'video_duration' : None,        #duration of video = frame_times[-1]
         
         'control_file' : None,          #control file name
+        'control_datetime' : None,      #datetime object of start
         'control_frame_count' : None,   #number of controls recorded
         'control_frame_times' : None,   #ms time differences from start
         'control_duration' : None,      #duration of controls recorded
