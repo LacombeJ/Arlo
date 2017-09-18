@@ -15,6 +15,8 @@ import node
 import _recording_config as rc
 
 import arlo.input.ps4 as ps4
+import arlo.output.al5d as al5d #TODO jonathan remove using ROS messages
+
 import arlo.utils.config as config
 import arlo.utils.ext as ext
 import arlo.utils.log as log
@@ -232,6 +234,116 @@ class ControlModule(RecordingModule):
         self._file = 'control.json'
         self._time_file = 'control_frames.json'
         
+        self._controls = []
+        self._time_stamper = ext.TimeStamper()
+        
+        self._pc = ps4.PS4Controller(ps4_config_id)
+        created = self._pc.create()
+        
+        if not created:
+            logger.log('error','Error finding PS4 controller')
+            quit()
+            
+        self._arm = al5d.RobotArm()
+        self._arm.create()
+            
+        print 'Press '+term.BOLD+term.CYAN+'HOME'+term.END+' on the PS4 controller to finish.'
+        print 'Press '+term.BOLD+term.GREEN+'TRIANGLE'+term.END+' on the PS4 controller to save and exit.'
+        print 'Press '+term.BOLD+term.RED+'CIRCLE'+term.END+' on the PS4 controller to discard and exit.'
+        
+    def loop(self):
+        self._pc.poll()
+        
+        if self._pc.home(): #Home to exit
+            return False
+            
+        if self._pc.triangle(): #Triangle to save
+            self._exited = True
+            self._save_prop = True
+            self._save = True
+            return False
+            
+        if self._pc.circle(): #Circle to discard
+            self._exited = True
+            self._save_prop = True
+            self._save = False
+            return False
+        
+        # Trigger mod
+        lt = self._pc.LT() + 1
+        rt = self._pc.RT() + 1
+        
+        #Displacement
+        C = [
+            self._pc.RX(),                      # BASE
+            -self._pc.RY(),                     # SHOULDER
+            -self._pc.LY(),                     # ELBOW
+            -lt + rt,                           # WRIST
+            self._pc.LX(),                      # WRIST_ROTATE
+            (-self._pc.L1() + self._pc.R1()),   # GRIPPER 
+        ]
+        
+        # Multipliers
+        C[0] = 100.0 * C[0] * C[0] * C[0]
+        C[1] = 100.0 * C[1] * C[1] * C[1]
+        C[2] = 100.0 * C[2] * C[2] * C[2]
+        C[3] = 100.0 * C[3] * C[3] * C[3]
+        C[4] = 100.0 * C[4] * C[4] * C[4]
+        C[5] = 100.0 * C[5] * C[5] * C[5]
+        
+        C = [int(c) for c in C]
+        
+        self._arm.displace(C)
+        
+        self._controls.append(C)
+        
+        self._time_stamper.stamp()
+         
+        return True
+            
+        
+    def finish(self):
+        #TODO
+        #Currently an error when destroy is called,
+        #segmentation fault causes by Pygame
+        #self._pc.destroy()
+        self._arm.destroy()
+        return self._exited, self._save_prop, self._save
+
+    def save(self, data):
+        control_file_data = {
+            "data" : self._controls
+        }
+        config.write(self._path+self._file,control_file_data)
+    
+        frame_times = self._time_stamper.times_ms()
+        time_file_data = {
+            "data" : frame_times
+        }
+        config.write(self._path+self._time_file,time_file_data)
+        
+        data['control_file'] = self._file
+        data['control_datetime'] = ext.pack_datetime(self._time_stamper.initial())
+        data['control_frame_count'] = len(frame_times)
+        data['control_frame_times'] = self._time_file
+        data['control_duration'] = frame_times[-1]
+
+
+
+# Control Module
+# Module for recording input from PS4 controller
+class ControlModuleROS(RecordingModule):
+
+    def start(self,save_path):
+        
+        self._exited = False
+        self._save_prop = False
+        self._save = False
+        
+        self._path = save_path
+        self._file = 'control.json'
+        self._time_file = 'control_frames.json'
+        
         self._pub = rospy.Publisher('al5d', Float32MultiArray, queue_size=10)
         rospy.init_node('al5d_pub', anonymous=True)
     
@@ -297,6 +409,7 @@ class ControlModule(RecordingModule):
             
         
     def finish(self):
+        #TODO
         #Currently an error when destroy is called,
         #segmentation fault causes by Pygame
         #self._pc.destroy()
@@ -321,9 +434,6 @@ class ControlModule(RecordingModule):
         data['control_duration'] = frame_times[-1]
 
 
-
-camera_module = CameraModule()
-control_module = ControlModule()
 
 
 
@@ -379,6 +489,9 @@ def record_session():
         'annotation' : None,            #Can be anything, (ex: 'success','failure',array of data)
         'comments' : None               #Any extra comments for video
     }
+    
+    camera_module = CameraModule()
+    control_module = ControlModule()
     
     # Add recording modules
     modules = []
@@ -457,9 +570,288 @@ def record_session():
 def config_session():
     rc.edit_config()
 
+
+
+
+
+
+
+#TODO jonathan separate playback in its own module
+
+
+# Video Module
+# Module for playing bacl video from file
+class VideoModule(RecordingModule):
+    
+    def start(self,save_path):
+        self._cap = cv2.VideoCapture(0)
+        
+        self._exited = False
+        self._save_prop = False
+        self._save = False
+        
+        self._path = save_path
+        self._file = 'video.avi'
+        self._time_file = 'video_frames.json'
+        
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        fps = 30.0
+        self._width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self._height = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        self._out = cv2.VideoWriter(self._path+self._file, fourcc, fps, (self._width,self._height))
+        
+        self._first_time = None
+        self._first_frame = True
+        self._frame_count = 0
+        
+        self._frame_times = []
+        
+        if self._cap.isOpened():
+        
+            if logger.level('debug'):
+                self._frame_name = "Recording Window"
+                
+                print 'Press '+term.BOLD+term.CYAN+'ESC'+term.END+' in {} to finish.'.format(self._frame_name)
+                print 'Press '+term.BOLD+term.GREEN+'S'+term.END+' in {} to finish.'.format(self._frame_name)
+                print 'Press '+term.BOLD+term.RED+'N'+term.END+' in {} to finish.'.format(self._frame_name)
+        
+            else:
+                logger.log('warn','Set logging level to debug to view recording video')
+        else:
+            logger.log('error','Video capture failed - no video capture device found')
+            quit()
+    
+    def loop(self):
+    
+        ret, frame = self._cap.read()
+        
+        if ret == False:
+            return False
+    
+        self._out.write(frame)
+        
+        if self._first_frame:
+            self._first_time = ext.datetime.now()
+            self._first_frame = False
+            frame_time = ext.datetime.now() - ext.datetime.now()
+        else:
+            frame_time = ext.datetime.now() - self._first_time
+        
+        self._frame_count = self._frame_count + 1
+        self._frame_times.append(ext.delta_ms(frame_time))
+    
+        if logger.level('debug'):
+            wait_key = cv2.waitKey(1) & 0xFF
+            
+            if wait_key == 27: #ESC to escape
+                return False
+                
+            if wait_key == ord('s'): #S to save
+                self._exited = True
+                self._save_prop = True
+                self._save = True
+                return False
+                
+            if wait_key == ord('n'): #N to discard
+                self._exited = True
+                self._save_prop = True
+                self._save = False
+                return False
+            
+            cv2.imshow(self._frame_name,frame)
+    
+        return True
+        
+    def finish(self):
+        self._cap.release()
+        cv2.destroyAllWindows()
+        return self._exited, self._save_prop, self._save
+       
+    def save(self, data):
+        self._out.release() #Video out file is saved
+        
+        time_file_data = {
+            "data" : self._frame_times
+        }
+        config.write(self._path+self._time_file,time_file_data)
+        
+        data['video_file'] = self._file
+        data['video_datetime'] = ext.pack_datetime(self._first_time)
+        data['video_width'] = self._width
+        data['video_height'] = self._height
+        data['video_frame_count'] = self._frame_count
+        data['video_frame_times'] = self._time_file
+        data['video_duration'] = self._frame_times[-1]
+
+
+# Replay Module
+# Module for replaying input from saved control output files
+class ReplayModule(RecordingModule):
+
+    def start(self,save_path):
+        
+        self._exited = False
+        self._save_prop = False
+        self._save = False
+        
+        self._path = save_path
+        self._file = 'control.json'
+        self._time_file = 'control_frames.json'
+        
+        self._controls = []
+        self._time_stamper = ext.TimeStamper()
+        
+        self._pc = ps4.PS4Controller(ps4_config_id)
+        created = self._pc.create()
+        
+        if not created:
+            logger.log('error','Error finding PS4 controller')
+            quit()
+            
+        self._arm = al5d.RobotArm()
+        self._arm.create()
+            
+        print 'Press '+term.BOLD+term.CYAN+'HOME'+term.END+' on the PS4 controller to finish.'
+        print 'Press '+term.BOLD+term.GREEN+'TRIANGLE'+term.END+' on the PS4 controller to save and exit.'
+        print 'Press '+term.BOLD+term.RED+'CIRCLE'+term.END+' on the PS4 controller to discard and exit.'
+        
+    def loop(self):
+        self._pc.poll()
+        
+        if self._pc.home(): #Home to exit
+            return False
+            
+        if self._pc.triangle(): #Triangle to save
+            self._exited = True
+            self._save_prop = True
+            self._save = True
+            return False
+            
+        if self._pc.circle(): #Circle to discard
+            self._exited = True
+            self._save_prop = True
+            self._save = False
+            return False
+        
+        # Trigger mod
+        lt = self._pc.LT() + 1
+        rt = self._pc.RT() + 1
+        
+        #Displacement
+        C = [
+            self._pc.RX(),                      # BASE
+            -self._pc.RY(),                     # SHOULDER
+            -self._pc.LY(),                     # ELBOW
+            -lt + rt,                           # WRIST
+            self._pc.LX(),                      # WRIST_ROTATE
+            (-self._pc.L1() + self._pc.R1()),   # GRIPPER 
+        ]
+        
+        # Multipliers
+        C[0] = 100.0 * C[0] * C[0] * C[0]
+        C[1] = 100.0 * C[1] * C[1] * C[1]
+        C[2] = 100.0 * C[2] * C[2] * C[2]
+        C[3] = 100.0 * C[3] * C[3] * C[3]
+        C[4] = 100.0 * C[4] * C[4] * C[4]
+        C[5] = 100.0 * C[5] * C[5] * C[5]
+        
+        C = [int(c) for c in C]
+        
+        self._arm.displace(C)
+        
+        self._controls.append(C)
+        
+        self._time_stamper.stamp()
+         
+        return True
+            
+        
+    def finish(self):
+        #TODO
+        #Currently an error when destroy is called,
+        #segmentation fault causes by Pygame
+        #self._pc.destroy()
+        self._arm.destroy()
+        return self._exited, self._save_prop, self._save
+
+    def save(self, data):
+        control_file_data = {
+            "data" : self._controls
+        }
+        config.write(self._path+self._file,control_file_data)
+    
+        frame_times = self._time_stamper.times_ms()
+        time_file_data = {
+            "data" : frame_times
+        }
+        config.write(self._path+self._time_file,time_file_data)
+        
+        data['control_file'] = self._file
+        data['control_datetime'] = ext.pack_datetime(self._time_stamper.initial())
+        data['control_frame_count'] = len(frame_times)
+        data['control_frame_times'] = self._time_file
+        data['control_duration'] = frame_times[-1]
+
+
+
+
+
 # PLAYBACK
 def playback_session():
-    pass
+    root, new = node.load(recording_path, translate)
+    if new:
+        root.set('record_count',0)
+        root.set('record_directories',[])
+        root.save()
+        logger.log('error','No recordings in new path')
+        return
+        
+    record_count = root.get('record_count')
+    record_directories = root.get('record_directories')
+    
+    last_dir = record_directories[-1]
+    
+    sub, _ = root.load(last_dir)
+    sub_path = sub.path()
+    
+    
+    # Add playback modules
+    modules = []
+    if camera == None:
+        logger.log('warn','Camera setting is None, no video will be recorded')
+    else:
+        modules.append(camera_module)
+    if control == None:
+        logger.log('warn','Control setting is None, no controls will be recorded')
+    else:
+        modules.append(control_module)
+    
+    
+    # Start playback
+    logger.log('info','Recording index: {}'.format(record_count))
+    print 'Starting to record...'
+    print 'Press '+term.BOLD+term.RED+'CTRL+C'+term.END+' in terminal to stop and discard video.'
+    
+    for module in modules:
+        module.start(sub_path)
+        
+    try:
+        loop = True
+        while loop:
+            for module in modules:
+                mod_loop = module.loop()
+                if not mod_loop:
+                    loop = False
+                    break
+    except KeyboardInterrupt:
+        print ""
+        quit()
+    
+    print 'Playback finished.'
+    
+    
+
 
 
 

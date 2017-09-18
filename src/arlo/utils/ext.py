@@ -57,6 +57,7 @@ class TimeStamper(object):
     def stamp(self):
         if self._first_time == None:
             self._first_time = datetime.now()
+            #TODO jonathan this isn't always 0, create a 0 datetime object instead
             frame_diff = datetime.now() - datetime.now() #First frame diff should always be 0
         else:
             frame_diff = datetime.now() - self._first_time
