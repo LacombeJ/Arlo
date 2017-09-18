@@ -31,6 +31,8 @@ class _Node(object):
         self._config = { }
         if load:
             self._config = config.read(self._config_path)
+            if self._config == None:
+                print "Error reading: '{}'".format(self._config_path)
         else:
             config.write(self._config_path, self._config)
         

@@ -6,12 +6,13 @@ from std_msgs.msg import Float32MultiArray
 import arlo.utils.config as config
 import arlo.input.ps4 as ps4
 
+
 def main():
 
     pub = rospy.Publisher('al5d', Float32MultiArray, queue_size=10)
     rospy.init_node('al5d_pub', anonymous=True)
     
-    rate = rospy.Rate(60)
+    rate = rospy.Rate(10)
     
     pc = ps4.PS4Controller()
     created = pc.create()
@@ -30,6 +31,7 @@ def main():
         data = config.read(fname)
         num = data['num']
     
+    mindex = 0
     while not rospy.is_shutdown():
             
         pc.poll()
@@ -60,8 +62,41 @@ def main():
             ]
             data[base + str(count)] = C
         
+        #Displacement
+        C = [
+            pc.RX(),    # BASE
+            -pc.RY(),    # SHOULDER
+            0,          # ELBOW
+            0,    # WRIST
+            0,    # WRIST_ROTATE
+            0,    # GRIPPER
+        ]
+        
+        # Trigger mod
+        lt = pc.LT() + 1
+        rt = pc.RT() + 1
         
         
+        
+        
+        # Test individuals
+        C = [
+            pc.RX(),    # good
+            -pc.RY(),    # 
+            -pc.LY(),    # 
+            -lt + rt,    # 
+            pc.LX(),    # 
+            (-pc.L1() + pc.R1()),    # 
+        ]
+        
+        # Multipliers
+        C[0] = 100 * C[0] * C[0] * C[0]
+        C[1] = 100 * C[1] * C[1] * C[1]
+        C[2] = 100 * C[2] * C[2] * C[2]
+        C[3] = 100 * C[3] * C[3] * C[3]
+        C[4] = 100 * C[4] * C[4] * C[4]
+        C[5] = 100 * C[5] * C[5] * C[5]
+
         rospy.loginfo(C)
         
         msg = Float32MultiArray()
