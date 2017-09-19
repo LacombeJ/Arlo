@@ -233,7 +233,7 @@ void RobotArm::commandRobotUsingIK(
     
     /* grip angle in radians for use in calculations */
     float grip_angle_d = 0; //TODO jonathan why is this suposed to be 0?
-    float grip_angle_r = grip_angle_d  * math.pi / 180.0;
+    float grip_angle_r = grip_angle_d  * M_PI / 180.0;
     
     /* Base angle and radial distance from x,y coordinates */
     float bas_angle_r = atan2( x, y );
