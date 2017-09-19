@@ -58,7 +58,7 @@ def main():
         C = [int(c) for c in C]
         arm.displace(C)
         
-        time.sleep(0.1)
+        #time.sleep(0.1)
         
     pc.destroy()
     arm.destroy()

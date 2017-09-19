@@ -6,6 +6,7 @@ import math
 # Modification of Vaclav Mach's leap_to_hand.cpp
 # https://github.com/lager1/leap_hand
 
+# http://man7.org/linux/man-pages/man2/open.2.html
 # https://docs.python.org/2/library/os.html
 # https://docs.python.org/2/library/termios.html
 # http://pubs.opengroup.org/onlinepubs/7908799/xsh/termios.h.html
@@ -143,7 +144,12 @@ class RobotArm(object):
         
     # Opens the tty USB file and sets the Robot to it's mid position
     def _initialize(self):
-        self._USB = os.open(self._usb_file, os.O_RDWR | os.O_NONBLOCK | os.O_NDELAY)
+    
+        #TODO jonathan remove sync parameter if OSError Errno 11 still occurs on "constant" write
+        #     or if synchronization is slow
+        #sync = os.O_SYNC # flushes all write data
+        sync = os.O_DSYNC # flushes write data needed for a read
+        self._USB = os.open(self._usb_file, os.O_RDWR | os.O_NONBLOCK | os.O_NDELAY | sync)
         
         if(self._USB < 0):
             print "Error({}) opening '{}'".format(USB,self._usb_file)

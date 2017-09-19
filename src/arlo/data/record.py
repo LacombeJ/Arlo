@@ -89,7 +89,7 @@ def record_session():
     }
     
     camera_module = CameraModule()
-    control_module = ControlModuleROS() #Arm | ROS
+    control_module = ControlModuleArm() #Arm | ROS
     
     # Add recording modules
     modules = []
