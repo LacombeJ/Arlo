@@ -1,8 +1,8 @@
 
 '''
-_recording_config.py
+data_config.py
 
-This module contains private utility functions to handle recording configuration file
+This module contains private utility functions to handle reading and writing configuration file
 
 '''
 

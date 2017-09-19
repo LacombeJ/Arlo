@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import arlo.data.recorddraft as rec
+import arlo.data.record as rec
 
 rec.record_session()
 
