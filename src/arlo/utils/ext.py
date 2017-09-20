@@ -71,6 +71,8 @@ class TimeStamper(object):
     def times_ms(self):
         return self._times
     
+    def last_time_ms(self):
+        return self._times[-1]
     
         
         

@@ -61,7 +61,7 @@ def record_session():
     record_count = root.get('record_count')
     record_directories = root.get('record_directories')
     
-    sub, _ = root.load('recording{}'.format(record_count))
+    sub, _ = root.load('recording{}/'.format(record_count))
     sub_path = sub.path()
     
     sub_data = {
@@ -89,7 +89,7 @@ def record_session():
     }
     
     camera_module = CameraModule()
-    control_module = ControlModuleArm() #Arm | ROS
+    control_module = ControlModuleROS() #Arm | ROS
     
     # Add recording modules
     modules = []
@@ -186,7 +186,8 @@ def record_session():
 class CameraModule(FrameModule):
     
     def start(self,save_path):
-    
+        FrameModule.start(self,save_path)
+        
         self._cap = cv2.VideoCapture(0)
         
         self._path = save_path
@@ -207,9 +208,9 @@ class CameraModule(FrameModule):
             if logger.level('debug'):
                 self._frame_name = "Recording Window"
                 
-                print 'Press '+term.BOLD+term.CYAN+'ESC'+term.END+' in {} to finish.'.format(self._frame_name)
-                print 'Press '+term.BOLD+term.GREEN+'S'+term.END+' in {} to finish.'.format(self._frame_name)
-                print 'Press '+term.BOLD+term.RED+'N'+term.END+' in {} to finish.'.format(self._frame_name)
+                print 'Press '+term.BOLD+term.CYAN+'ESC'+term.END+" in '{}' to finish.".format(self._frame_name)
+                print 'Press '+term.BOLD+term.GREEN+'S'+term.END+" in '{}' to finish.".format(self._frame_name)
+                print 'Press '+term.BOLD+term.RED+'N'+term.END+" in '{}' to finish.".format(self._frame_name)
         
             else:
                 logger.log('warn','Set logging level to debug to view recording video')
@@ -258,7 +259,7 @@ class CameraModule(FrameModule):
         time_file_data = {
             "data" : frame_times
         }
-        config.write(self._path+self._time_file,time_file_data)
+        config.write(self._path+self._time_file,time_file_data,compact=True)
         
         data['video_file'] = self._file
         data['video_datetime'] = ext.pack_datetime(self._time_stamper.initial())
@@ -294,6 +295,7 @@ class ControlModule(FrameModule):
     # ---------------------------------------------------------------------- #
     
     def start(self,save_path):
+        FrameModule.start(self,save_path)
         
         self._path = save_path
         self._file = 'control.json'
@@ -336,7 +338,9 @@ class ControlModule(FrameModule):
         
         self._time_stamper.stamp()
          
-        self._update(C)
+        if not self._update(C):
+            self.setFinishValues(True,True,False)
+            return False
          
         return True
             
@@ -356,20 +360,19 @@ class ControlModule(FrameModule):
         control_file_data = {
             "data" : self._controls
         }
-        config.write(self._path+self._file,control_file_data)
+        config.write(self._path+self._file,control_file_data,compact=True)
     
         frame_times = self._time_stamper.times_ms()
         time_file_data = {
             "data" : frame_times
         }
-        config.write(self._path+self._time_file,time_file_data)
+        config.write(self._path+self._time_file,time_file_data,compact=True)
         
         data['control_file'] = self._file
         data['control_datetime'] = ext.pack_datetime(self._time_stamper.initial())
         data['control_frame_count'] = len(frame_times)
         data['control_frame_times'] = self._time_file
         data['control_duration'] = frame_times[-1]
-
 
 
 # ------------------------------ CONTROL-ARM ------------------------------- #
@@ -382,6 +385,7 @@ class ControlModuleArm(ControlModule):
         
     def _update(self,C):
         self._arm.displace(C)
+        return True
         
     def _destroy(self):
         self._arm.destroy()
@@ -398,10 +402,13 @@ class ControlModuleROS(ControlModule):
         self._rate = rospy.Rate(60)
         
     def _update(self,C):
+        if rospy.is_shutdown():
+            return False
         msg = Float32MultiArray()
         msg.data = C
         self._pub.publish(msg)
         self._rate.sleep()
+        return True
         
     def _destroy(self):
         pass

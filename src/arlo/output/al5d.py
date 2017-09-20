@@ -152,7 +152,7 @@ class RobotArm(object):
         self._USB = os.open(self._usb_file, os.O_RDWR | os.O_NONBLOCK | os.O_NDELAY | sync)
         
         if(self._USB < 0):
-            print "Error({}) opening '{}'".format(USB,self._usb_file)
+            print "Error({}) opening '{}'".format(self._USB,self._usb_file)
         
         tty = termios.tcgetattr(self._USB)
         if tty == None:

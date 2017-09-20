@@ -26,7 +26,7 @@ class _Node(object):
         self._name = name
         self._translate = translate
         self._path = path
-        self._node_path = self._path + self._name + '/' 
+        self._node_path = self._path + self._name
         self._config_path = self._node_path + 'meta.json'
         self._config = { }
         if load:

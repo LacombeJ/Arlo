@@ -51,9 +51,13 @@ Writes a dict to a file
 Example:
 config.write('config.json', data)
 '''
-def write(fname, data):
+def write(fname, data, compact=False):
     with open(fname, 'w') as write_file:
-        json.dump(data, write_file, indent=4)
+        if compact:
+            json.dump(data, write_file, indent=0, separators=(',', ':'))
+        else:
+            json.dump(data, write_file, indent=4)
+
 
 
 def keylist(data):

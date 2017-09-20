@@ -67,14 +67,14 @@ def read_config():
 '''
 Attempts to read recording.json, if not found creates one
 '''
-def read_or_create_config():
+def read_or_create_config(output=True):
     result = au_config.read(_recording_config)
     if result == None:
         print "File '{}' not found".format(_recording_config)
         result = _create_config()
     else:
         print "File '{}' found".format(_recording_config)
-        check_result = _check_config(result)
+        check_result = _check_config(result, output)
         if check_result is not None:
             result = check_result
             au_config.write(_recording_config,result) #write again if missing parameters
@@ -189,13 +189,13 @@ def _create_config():
 
 #Checks the json config file to see if it contains the necessary values,
 #if it doesn't, it writes to the json config file
-def _check_config(rconfig):
+def _check_config(rconfig, output=True):
     print "Checking config file..."
 
     changed = False
     for value in _config_set:
         prev_value = rconfig.get(value)
-        rconfig[value], valid = _valid_attrib(prev_value,value,_config_set[value][0],_config_set[value][1])
+        rconfig[value], valid = _valid_attrib(prev_value,value,_config_set[value][0],_config_set[value][1],output)
         if not valid:
             changed = True
     
@@ -205,13 +205,14 @@ def _check_config(rconfig):
     return rconfig #Was invalid, rconfig is updated
     
 #Checks to see if this attribute is valid, if it isn't it asks the user for a valid attribute
-def _valid_attrib(attrib,name,set_name,json_file):
+def _valid_attrib(attrib,name,set_name,json_file,output=True):
     valid = True
     if attrib == None:
         print term.RED + 'Error finding {} in config file'.format(name)
         attrib = _read_config_enter_attrib(name,set_name,json_file)
         valid = False
-    _output_attrib(name,attrib)
+    if output:
+        _output_attrib(name,attrib)
     return attrib, valid
 
 #Checks to see if this path is valid, if it isn't it asks the user for a valid path

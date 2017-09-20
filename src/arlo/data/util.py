@@ -6,6 +6,8 @@ This module contains some utility functions for handling data
 
 '''
 
+import cv2
+
 import data_config as dc
 
 import arlo.utils.config as config
@@ -32,10 +34,10 @@ def prop(key,dc_config,config_set):
 
 
 # Loads the config file and properties in supporting config files
-def load_config_file():
+def load_config_file(output=True):
     recording_path = dc.recording_path()
     
-    dc_config = dc.read_or_create_config()
+    dc_config = dc.read_or_create_config(output)
     config_set = dc.config_set()
     
     user,       user_prop       = prop('user',dc_config,config_set)
@@ -107,18 +109,34 @@ class FrameModule(object):
 
 # Translator
 def translate(node,otype,value):
-    #TODO jonathan fill, come up with video format
-    if otype=='video':
-        return None
-    if otype=='video_frames':
-        return None
-    if otype=='control':
-        return None
-    if otype=='control_frames':
-        return None
+    if otype=='video_cap':
+        return cv2.VideoCapture(node.path()+value)
+    if otype=='json_data':
+        return config.read(node.path()+value).get('data')
     return None
     
     
+# Simple handling of window position
+window_count = 0
+window_multiplier = 32
+def new_window(frame_name):
+    dxy = window_count * window_multiplier
+    cv2.moveWindow(frame_name,100+dxy,100+dxy)
+    window_count += 1
+    
+# Advanced handling of window position
+class WindowHandler(object):
+    
+    # positions [(x,y),...]
+    def __init__(self,positions):
+        self._positions = positions
+        self._index = 0
         
+    def new_window(self,frame_name):
+        if self._index >= len(self._positions):
+            self._index = 0
+        posx, posy = self._positions[self._index]
+        cv2.moveWindow(frame_name,posx,posy)
+        self._index += 1
 
 

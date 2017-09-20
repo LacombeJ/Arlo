@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 
-import arlo.data.record as record
+import arlo.data.playback as play
 import arlo.utils.args as args
 
 
@@ -11,9 +12,7 @@ if arg0 is not None:
     index = int(arg0)    
 
 
-play = record.BasicPlayback(index)
-
-play.start()
+play.playback_session(index)
 
 
 
