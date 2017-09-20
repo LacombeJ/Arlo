@@ -140,7 +140,7 @@ class VideoModule(FrameModule):
         print 'Video duration: {} s'.format(duration/1000)
         
         self._cap = sub.get('video_file',otype='video_cap')
-        self._frame_times = sub.get('video_frame_times',otype='pickle_data')
+        self._frame_times = sub.get('video_frame_times',otype='json_data')
         
         self._time_stamper = ext.TimeStamper()
         
@@ -223,8 +223,8 @@ class OutputModule(FrameModule):
         duration = sub.get('control_duration')
         print 'Control duration: {} s'.format(duration/1000)
         
-        self._controls = sub.get('control_file',otype='pickle_data')
-        self._frame_times = sub.get('control_frame_times',otype='pickle_data')
+        self._controls = sub.get('control_file',otype='json_data')
+        self._frame_times = sub.get('control_frame_times',otype='json_data')
         
         self._time_stamper = ext.TimeStamper()
         
