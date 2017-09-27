@@ -6,8 +6,10 @@ This module contains miscellaneous utility functions as extensions to other modu
 
 '''
 
-import datetime as _datetime
+import os
+import inspect
 
+import datetime as _datetime
 
 def list_format(_list):
     result = ""
