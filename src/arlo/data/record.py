@@ -89,7 +89,7 @@ def record_session():
     }
     
     camera_module = CameraModule()
-    control_module = ControlModuleROS() #Arm | ROS
+    control_module = ControlModuleArm() #Arm | ROS
     
     # Add recording modules
     modules = []
@@ -273,6 +273,111 @@ class CameraModule(FrameModule):
 
 
 
+
+
+
+
+
+# ---------------------------------- LEAP ---------------------------------- #
+# ------------- Module for recording input from PS4 controller ------------- #
+
+class LeapModule(FrameModule):
+    
+    # ---------------------------------------------------------------------- #
+    
+    # Override this method to create objects in start method
+    def _create(self):
+        pass
+        
+    # Override this method to add updates in loop method (C=robot controls)
+    def _update(self, C):
+        pass
+        
+    # Override this method to destroy object in finish method
+    def _destroy(self):
+        pass
+    
+    # ---------------------------------------------------------------------- #
+    
+    def start(self,save_path):
+        FrameModule.start(self,save_path)
+        
+        self._path = save_path
+        self._file = 'control.json'
+        self._time_file = 'control_frames.json'
+        
+        self._controls = []
+        self._time_stamper = ext.TimeStamper()
+        
+        self._pc = ps4.PS4Controller(ps4_config_id)
+        created = self._pc.create()
+        
+        if not created:
+            logger.log('error','Error finding PS4 controller')
+            quit()
+            
+        self._create()
+        
+        print 'Press '+term.BOLD+term.GREEN+'TRIANGLE'+term.END+' on the PS4 controller to save and exit.'
+        print 'Press '+term.BOLD+term.RED+'CIRCLE'+term.END+' on the PS4 controller to discard and exit.'
+        
+
+    def loop(self):
+        self._pc.poll()
+        
+        if self._pc.triangle(): #Triangle to save
+            self.setFinishValues(True,True,True)
+            return False
+            
+        if self._pc.circle(): #Circle to discard
+            self.setFinishValues(True,True,False)
+            return False
+        
+        POS = self._update(self._pc)
+        
+        self._time_stamper.stamp()
+        self._controls.append(POS)
+         
+        return True
+            
+        
+    def finish(self):
+        #TODO jonathan do I need to fix or uncomment?
+        # Currently an error when _pc.destroy is called,
+        # segmentation fault causes by Pygame
+        # Program still runs fine with code uncommented
+        
+        #self._pc.destroy()
+        self._destroy()
+        return self.getFinishValues()
+
+
+    def save(self, data):
+        control_file_data = {
+            "data" : self._controls
+        }
+        config.write(self._path+self._file,control_file_data,compact=True)
+    
+        frame_times = self._time_stamper.times_ms()
+        time_file_data = {
+            "data" : frame_times
+        }
+        config.write(self._path+self._time_file,time_file_data,compact=True)
+        
+        data['control_file'] = self._file
+        data['control_datetime'] = ext.pack_datetime(self._time_stamper.initial())
+        data['control_frame_count'] = len(frame_times)
+        data['control_frame_times'] = self._time_file
+        data['control_duration'] = frame_times[-1]
+
+
+
+
+
+
+
+
+
 # -------------------------------- CONTROL --------------------------------- #
 # ------------- Module for recording input from PS4 controller ------------- #
 
@@ -313,7 +418,6 @@ class ControlModule(FrameModule):
             
         self._create()
         
-        print 'Press '+term.BOLD+term.CYAN+'HOME'+term.END+' on the PS4 controller to finish.'
         print 'Press '+term.BOLD+term.GREEN+'TRIANGLE'+term.END+' on the PS4 controller to save and exit.'
         print 'Press '+term.BOLD+term.RED+'CIRCLE'+term.END+' on the PS4 controller to discard and exit.'
         
@@ -321,9 +425,6 @@ class ControlModule(FrameModule):
     def loop(self):
         self._pc.poll()
         
-        if self._pc.home(): #Home to exit
-            return False
-            
         if self._pc.triangle(): #Triangle to save
             self.setFinishValues(True,True,True)
             return False
@@ -332,15 +433,10 @@ class ControlModule(FrameModule):
             self.setFinishValues(True,True,False)
             return False
         
-        C = getControls(self._pc)
-        
-        self._controls.append(C)
+        POS = self._update(self._pc)
         
         self._time_stamper.stamp()
-         
-        if not self._update(C):
-            self.setFinishValues(True,True,False)
-            return False
+        self._controls.append(POS)
          
         return True
             
@@ -383,9 +479,19 @@ class ControlModuleArm(ControlModule):
         self._arm = al5d.RobotArm()
         self._arm.create()
         
-    def _update(self,C):
-        self._arm.displace(C)
-        return True
+    def _update(self,pc):
+    
+        if pc.home():
+            POS = self._arm.center()
+        else:
+            IK = True
+            C = getControls(pc,IK)
+            if IK:
+                POS = self._arm.displace_IK(C)
+            else:
+                POS = self._arm.displace(C)
+        
+        return POS
         
     def _destroy(self):
         self._arm.destroy()
@@ -401,7 +507,7 @@ class ControlModuleROS(ControlModule):
         rospy.init_node('al5d_pub', anonymous=True)
         self._rate = rospy.Rate(60)
         
-    def _update(self,C):
+    def _update(self,C,pc):
         if rospy.is_shutdown():
             return False
         msg = Float32MultiArray()
@@ -417,8 +523,39 @@ class ControlModuleROS(ControlModule):
 
 # Returns controls to send to robot from a ps4 controller
 # pc PS4 controller object
-def getControls(pc):
+def getControls(pc,IK):
 
+    if IK:
+        C = ikcontrol(pc)
+    else:
+        C = control1(pc)
+      
+    return [int(c) for c in C]
+
+
+# For shoulder-elbow IK displacement
+def ikcontrol(pc):
+    # Trigger mod
+    lt = pc.LT() + 1
+    rt = pc.RT() + 1
+    
+    #Displacement
+    C = [
+        pc.LX(),                # BASE
+        -pc.LY(),               # SHOULDER
+        -pc.RY(),              # ELBOW
+        -lt + rt,               # WRIST
+        pc.LX(),                # WRIST_ROTATE
+        (-pc.L1() + pc.R1()),   # GRIPPER 
+    ]
+    
+    sensitivity2(C)
+    
+    return [int(c) for c in C]
+
+
+
+def control2(pc):
     # Trigger mod
     lt = pc.LT() + 1
     rt = pc.RT() + 1
@@ -426,25 +563,58 @@ def getControls(pc):
     #Displacement
     C = [
         pc.RX(),                # BASE
-        -pc.RY(),               # SHOULDER
-        -pc.LY(),               # ELBOW
+        pc.RY(),               # SHOULDER
+        pc.LY(),               # ELBOW
+        -pc.R1() + pc.R2(),               # WRIST
+        pc.LX(),                # WRIST_ROTATE
+        pc.L1() - pc.L2(),   # GRIPPER 
+    ]
+    
+    return C
+
+
+
+
+
+def control1(pc):
+    # Trigger mod
+    lt = pc.LT() + 1
+    rt = pc.RT() + 1
+        
+    #Displacement
+    C = [
+        pc.RX(),                # BASE
+        pc.RY(),               # SHOULDER
+        pc.LY(),               # ELBOW
         -lt + rt,               # WRIST
         pc.LX(),                # WRIST_ROTATE
         (-pc.L1() + pc.R1()),   # GRIPPER 
     ]
     
-    # Multipliers
-    C[0] = 100.0 * C[0] * C[0] * C[0]
-    C[1] = 100.0 * C[1] * C[1] * C[1]
-    C[2] = 100.0 * C[2] * C[2] * C[2]
-    C[3] = 100.0 * C[3] * C[3] * C[3]
-    C[4] = 100.0 * C[4] * C[4] * C[4]
-    C[5] = 100.0 * C[5] * C[5] * C[5]
+    sensitivity1(C)
     
-    return [int(c) for c in C]
+    return C
+
+def sensitivity1(C):
+    # Multipliers
+    C[0] = 30.0 * C[0] #BASE
+    C[1] = 10.0 * C[1] #SHOULDER
+    C[2] = 10.0 * C[2] #ELBOW
+    C[3] = 10.0 * C[3] #WRIST
+    C[4] = 10.0 * C[4] #WRIST_ROTATE
+    C[5] = 100.0 * C[5] #GRIPPER
+    return C
 
 
-
+def sensitivity2(C):
+    # Multipliers
+    C[0] = 30.0 * C[0]  #BASE
+    C[1] = 0.01 * C[1]         #SHOULDER
+    C[2] = 0.01 * C[2]         #ELBOW
+    C[3] = 10.0 * C[3]  #WRIST
+    C[4] = 10.0 * C[4]  #WRIST_ROTATE
+    C[5] = 100.0 * C[5] #GRIPPER
+    return C
 
 
 

@@ -24,12 +24,6 @@ OSPEED  = 5
 CC      = 6
 
 
-# Dimension
-X = 0
-Y = 1
-Z = 2
-
-
 # Range
 MIN         = 0
 CENTER      = 1
@@ -58,6 +52,15 @@ RANGES = [
     [600,   1600,   2400], # Gripper
 ]
 
+DEFAULT = [
+    1500,
+    1500,
+    1250,
+    1500,
+    1350,
+    1600
+]
+
 # IK movement constants
 BASE_HGT    = 67.31             # base hight 2.65"
 HUMERUS     = 146.05            # shoulder-to-elbow "bone" 5.75"
@@ -66,6 +69,15 @@ GRIPPER_VAL = 100.00            # gripper (incl.heavy duty wrist rotate mechanis
 hum_sq      = HUMERUS*HUMERUS;
 uln_sq      = ULNA*ULNA;
 
+# Shoulder-elbow IK movement constants
+SL      = 14.1          # Length of shoulder (cm)
+EL      = 18.5          # Length of elbow (cm)
+S_MID   = 1530.0        # Shoulder servo pos at 0 radians
+E_MID   = 1210.0        # Elbow servo pos at 0 radians
+DS      = 430.0         # Shoulder servo difference equivalent to 45 degrees (pi/4 radians)
+DE      = 430.0         # Elbow servo difference equivalent to 45 degrees (pi/4 radians)
+PI_2    = math.pi / 2   # PI over 2 (90 deg)
+PI_4    = math.pi / 4   # PI over 4 (45 deg)
 
 class RobotArm(object):
 
@@ -106,25 +118,40 @@ class RobotArm(object):
                 
         if len(command) > 0:
             # Append end
+            print self._position
             command += "T400\r" # time(ms) to complete, was on 800 using c++ RobotArm class
-            print new_pos
-            
+            #print "command: " + command
             # Write command string
             os.write(self._USB,command)
+            return True
+            
+        return False
         
     # Displaces current position by values of the given array
     def displace(self,displacement):
         new_pos = [self._position[i] + displacement[i] for i in range(NUM_SERVOS)]
-        self.move(new_pos)
+        return self.move(new_pos)
+        
+    # IK values x,y are given by displacement[1], displacement[2]
+    def displace_IK(self,displacement):
+        d = self._displace_IK(displacement)
+        return self.displace(d)
         
     def move_IK(self,x,y,z,wrist_degree,wrist_rotate_degree,open_gripper):
         ik_pos = self._position_IK(x,y,z,wrist_degree,wrist_rotate_degree,open_gripper)
-        self.move(ik_pos)
+        return self.move(ik_pos)
+        
+    def center(self):
+        return self.move(DEFAULT)
         
     # Sets the robot arm to its center position
     def set_to_mid(self):
         cmd = "#0P1500S200#1P1600S200#2P1400S200#3P1500S200#4P1450S200#5P1400S250\r"
         os.write(self._USB,cmd)
+        
+    # Returns the positions of the arms servos
+    def get_pos(self):
+        return self._position
         
     # Checks if the servo move is valid and if it is, update internal position
     def _check_move_servo(self,i,pos):
@@ -144,12 +171,8 @@ class RobotArm(object):
         
     # Opens the tty USB file and sets the Robot to it's mid position
     def _initialize(self):
-    
-        #TODO jonathan remove sync parameter if OSError Errno 11 still occurs on "constant" write
-        #     or if synchronization is slow
-        #sync = os.O_SYNC # flushes all write data
-        sync = os.O_DSYNC # flushes write data needed for a read
-        self._USB = os.open(self._usb_file, os.O_RDWR | os.O_NONBLOCK | os.O_NDELAY | sync)
+        
+        self._USB = os.open(self._usb_file, os.O_RDWR | os.O_NONBLOCK | os.O_NDELAY)
         
         if(self._USB < 0):
             print "Error({}) opening '{}'".format(self._USB,self._usb_file)
@@ -230,7 +253,8 @@ class RobotArm(object):
         
         # s_w angle to humerus
         cos = (( hum_sq - uln_sq ) + s_w ) / ( 2 * HUMERUS * s_w_sqrt )
-        a2 = math.acos(cos)
+        if cos < 0: cos = 0 #Added these two lines because of math error
+        if cos > 1: cos = 1
         
         # Shoulder angle
         shl_angle_r = a1 + a2
@@ -239,7 +263,10 @@ class RobotArm(object):
         shl_angle_d = shl_angle_r * 180.0 / math.pi
     
         # Elbow angle
-        elb_angle_r = math.acos(( hum_sq + uln_sq - s_w ) / ( 2 * HUMERUS * ULNA ))
+        cos = ( hum_sq + uln_sq - s_w ) / ( 2 * HUMERUS * ULNA )
+        if cos < 0: cos = 0 #Added these two lines because of math error
+        if cos > 1: cos = 1
+        elb_angle_r = math.acos(cos)
         elb_angle_d = elb_angle_r * 180.0 / math.pi
         elb_angle_dn = -( 180.0 - elb_angle_d )
         
@@ -258,7 +285,74 @@ class RobotArm(object):
         return ik_pos
 
 
+    def _displace_IK(self,C):
+        
+        # X,Y displacement in cm
+        x = C[1]
+        y = C[2]
+        
+        # Servo positions
+        P = self.get_pos()
+        
+        # Arm servos
+        PS = P[1] # Position of shoulder servo
+        PE = P[2] # Position of elbow servo
+        
+        # Angle of shoulder (0 up, pos left, neg right)
+        theta_s = ((S_MID - PS) / DS) * PI_4
+        theta_e = ((E_MID - PE) / DE) * PI_4
+        
+        # Distance of wrist to shoulder servo (cm)
+        dWS = math.sqrt( SL**2 + EL**2 - 2*SL*EL*math.cos(theta_e + PI_2) )
+        #dWS = math.sqrt( (EL*math.sin(theta_e) + SL )**2 + (EL*math.cos(theta_e))**2 )
+        
+        # Angle between wrist and shoulder
+        w = math.acos( ( EL*math.sin(theta_e) + SL ) / dWS )
+        
+        # Angle between wrist and up
+        phi = PI_2 - theta_s - w
+        
+        # --------------------------------------------------
+        
+        # Find pos (x,y) in cm of wrist
+        pos_wx = dWS * math.cos(phi)
+        pos_wy = dWS * math.sin(phi)
+        
+        # Displace pos (cm)
+        new_wx = pos_wx + x
+        new_wy = pos_wy + y
+        print new_wx, new_wy, x, y
+        # --------------------------------------------------
+        
+        # Find appropriate angles of shoulder and elbow for the new pos
+        dWS_targ = math.sqrt(new_wx**2 + new_wy**2)
+        phi_targ = math.acos(new_wx / dWS_targ)
+        
+        angDWS = math.acos( alim( ( SL**2 + EL**2 - dWS_targ**2) / (2*SL*EL) ) )
+        angEL = math.acos( alim ( ( dWS_targ**2 + SL**2 - EL**2) / (2*dWS_targ*SL) ) )
+        
+        theta_s_targ = PI_2 - phi_targ - angEL
+        
+        #TODO jonathan find right method to compensate for acos() mapping
+        theta_e_targ = angDWS - PI_2
+        
+        # Find corresponding new servo pos
+        PS_targ = S_MID - theta_s_targ * DS / PI_4
+        PE_targ = E_MID - theta_e_targ * DE / PI_4
+        
+        C[1] = int(PS_targ-PS)
+        C[2] = int(PE_targ-PE)
 
+        return C
+
+
+# Limit acos and asin
+def alim(cos):
+    if cos > 1.0:
+        return 1.0
+    if cos < -1.0:
+        return -1.0
+    return cos
 
 
 
