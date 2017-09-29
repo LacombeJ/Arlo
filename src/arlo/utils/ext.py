@@ -9,6 +9,7 @@ This module contains miscellaneous utility functions as extensions to other modu
 import os
 import inspect
 
+import time
 import datetime as _datetime
 
 def list_format(_list):
@@ -77,5 +78,34 @@ class TimeStamper(object):
         return self._times[-1]
     
         
+        
+class TimeRate(object):
+    
+    def __init__(self):
+        self._time = None
+
+    # Return true if last call to rate or hold exceeded the given time (ms)
+    def rate(self,ms):
+        val = False
+        if self._time == None:
+            val = True
+            self._time = datetime.now()
+        else:
+            diff_ms = delta_ms(datetime.now() - self._time)
+            if diff_ms > ms:
+                val = True
+                self._time = datetime.now()
+        return val
+        
+    # Holds thread if last call to rate or hold was within the given time (ms)
+    def hold(self,ms):
+        if self._time == None:
+            self._time = datetime.now()
+        else:
+            diff = delta_ms(datetime.now() - self._time)
+            if diff_ms < ms:
+                time.sleep((ms - diff_ms)/1000.0)
+                self._time = datetime.now()
+            
         
     

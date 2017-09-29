@@ -118,9 +118,8 @@ class RobotArm(object):
                 
         if len(command) > 0:
             # Append end
-            print self._position
             command += "T400\r" # time(ms) to complete, was on 800 using c++ RobotArm class
-            #print "command: " + command
+            
             # Write command string
             os.write(self._USB,command)
             return True
@@ -321,7 +320,7 @@ class RobotArm(object):
         # Displace pos (cm)
         new_wx = pos_wx + x
         new_wy = pos_wy + y
-        print new_wx, new_wy, x, y
+        print new_wx, new_wy
         # --------------------------------------------------
         
         # Find appropriate angles of shoulder and elbow for the new pos
@@ -335,6 +334,9 @@ class RobotArm(object):
         
         #TODO jonathan find right method to compensate for acos() mapping
         theta_e_targ = angDWS - PI_2
+        
+        print math.degrees(theta_s_targ)
+        print math.degrees(theta_e_targ)
         
         # Find corresponding new servo pos
         PS_targ = S_MID - theta_s_targ * DS / PI_4

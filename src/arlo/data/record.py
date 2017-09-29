@@ -281,6 +281,7 @@ class CameraModule(FrameModule):
 # ---------------------------------- LEAP ---------------------------------- #
 # ------------- Module for recording input from PS4 controller ------------- #
 
+#TODO jonathan create a super class that LeapModule and ControlModule extends
 class LeapModule(FrameModule):
     
     # ---------------------------------------------------------------------- #
@@ -345,7 +346,7 @@ class LeapModule(FrameModule):
         #TODO jonathan do I need to fix or uncomment?
         # Currently an error when _pc.destroy is called,
         # segmentation fault causes by Pygame
-        # Program still runs fine with code uncommented
+        # Program still runs fine with code commented
         
         #self._pc.destroy()
         self._destroy()
@@ -408,6 +409,7 @@ class ControlModule(FrameModule):
         
         self._controls = []
         self._time_stamper = ext.TimeStamper()
+        self._time_rate = ext.TimeRate()
         
         self._pc = ps4.PS4Controller(ps4_config_id)
         created = self._pc.create()
@@ -423,20 +425,24 @@ class ControlModule(FrameModule):
         
 
     def loop(self):
-        self._pc.poll()
+    
+        # This is to avoid sending too much data which may cause an IOError
+        if self._time_rate.rate(40):
         
-        if self._pc.triangle(): #Triangle to save
-            self.setFinishValues(True,True,True)
-            return False
+            self._pc.poll()
             
-        if self._pc.circle(): #Circle to discard
-            self.setFinishValues(True,True,False)
-            return False
-        
-        POS = self._update(self._pc)
-        
-        self._time_stamper.stamp()
-        self._controls.append(POS)
+            if self._pc.triangle(): #Triangle to save
+                self.setFinishValues(True,True,True)
+                return False
+                
+            if self._pc.circle(): #Circle to discard
+                self.setFinishValues(True,True,False)
+                return False
+            
+            POS = self._update(self._pc)
+            
+            self._time_stamper.stamp()
+            self._controls.append(POS)
          
         return True
             
@@ -445,7 +451,7 @@ class ControlModule(FrameModule):
         #TODO jonathan do I need to fix or uncomment?
         # Currently an error when _pc.destroy is called,
         # segmentation fault causes by Pygame
-        # Program still runs fine with code uncommented
+        # Program still runs fine with code commented
         
         #self._pc.destroy()
         self._destroy()
@@ -478,18 +484,14 @@ class ControlModuleArm(ControlModule):
     def _create(self):
         self._arm = al5d.RobotArm()
         self._arm.create()
+        self._control = Control_IK_SE()
         
     def _update(self,pc):
     
         if pc.home():
             POS = self._arm.center()
         else:
-            IK = True
-            C = getControls(pc,IK)
-            if IK:
-                POS = self._arm.displace_IK(C)
-            else:
-                POS = self._arm.displace(C)
+            POS = self._control.control(self._arm,pc)
         
         return POS
         
@@ -520,106 +522,70 @@ class ControlModuleROS(ControlModule):
         pass
 
 
+class Control_Interface(object):
+    # Sends commands to arm
+    # Returns arm servo positions
+    def control(self,arm,pc):
+        pass
 
-# Returns controls to send to robot from a ps4 controller
-# pc PS4 controller object
-def getControls(pc,IK):
+class Control_Basic(Control_Interface):
 
-    if IK:
-        C = ikcontrol(pc)
-    else:
-        C = control1(pc)
-      
-    return [int(c) for c in C]
-
-
-# For shoulder-elbow IK displacement
-def ikcontrol(pc):
-    # Trigger mod
-    lt = pc.LT() + 1
-    rt = pc.RT() + 1
+    def control(self,arm,pc):
     
-    #Displacement
-    C = [
-        pc.LX(),                # BASE
-        -pc.LY(),               # SHOULDER
-        -pc.RY(),              # ELBOW
-        -lt + rt,               # WRIST
-        pc.LX(),                # WRIST_ROTATE
-        (-pc.L1() + pc.R1()),   # GRIPPER 
-    ]
-    
-    sensitivity2(C)
-    
-    return [int(c) for c in C]
-
-
-
-def control2(pc):
-    # Trigger mod
-    lt = pc.LT() + 1
-    rt = pc.RT() + 1
+        # Trigger mod
+        lt = pc.LT() + 1
+        rt = pc.RT() + 1
+            
+        #Displacement
+        C = [
+            pc.RX(),                # BASE
+            pc.RY(),                # SHOULDER
+            pc.LY(),                # ELBOW
+            -lt + rt,               # WRIST
+            pc.LX(),                # WRIST_ROTATE
+            (-pc.L1() + pc.R1()),   # GRIPPER 
+        ]
         
-    #Displacement
-    C = [
-        pc.RX(),                # BASE
-        pc.RY(),               # SHOULDER
-        pc.LY(),               # ELBOW
-        -pc.R1() + pc.R2(),               # WRIST
-        pc.LX(),                # WRIST_ROTATE
-        pc.L1() - pc.L2(),   # GRIPPER 
-    ]
+        # Multipliers
+        C[0] = int(30.0  * C[0])    #BASE
+        C[1] = int(10.0  * C[1])    #SHOULDER
+        C[2] = int(10.0  * C[2])    #ELBOW
+        C[3] = int(10.0  * C[3])    #WRIST
+        C[4] = int(10.0  * C[4])    #WRIST_ROTATE
+        C[5] = int(100.0 * C[5])    #GRIPPER
     
-    return C
-
-
-
-
-
-def control1(pc):
-    # Trigger mod
-    lt = pc.LT() + 1
-    rt = pc.RT() + 1
+        return arm.displace(C)
         
-    #Displacement
-    C = [
-        pc.RX(),                # BASE
-        pc.RY(),               # SHOULDER
-        pc.LY(),               # ELBOW
-        -lt + rt,               # WRIST
-        pc.LX(),                # WRIST_ROTATE
-        (-pc.L1() + pc.R1()),   # GRIPPER 
-    ]
+
+class Control_IK_SE(Control_Interface):
     
-    sensitivity1(C)
+    def control(self,arm,pc):
     
-    return C
+        # Trigger mod
+        lt = pc.LT() + 1
+        rt = pc.RT() + 1
+        
+        #Displacement
+        C = [
+            pc.LX(),                # BASE
+            -pc.LY(),               # SHOULDER
+            -pc.RY(),               # ELBOW
+            -lt + rt,               # WRIST
+            pc.LX(),                # WRIST_ROTATE
+            (-pc.L1() + pc.R1()),   # GRIPPER 
+        ]
+        
+        # Multipliers
+        C[0] = int(30.0  * C[0])    #BASE
+        
+        C[3] = int(10.0  * C[3])    #WRIST
+        C[4] = int(10.0  * C[4])    #WRIST_ROTATE
+        C[5] = int(100.0 * C[5])    #GRIPPER
+        
+        return arm.displace_IK(C)
+        
+        
 
-def sensitivity1(C):
-    # Multipliers
-    C[0] = 30.0 * C[0] #BASE
-    C[1] = 10.0 * C[1] #SHOULDER
-    C[2] = 10.0 * C[2] #ELBOW
-    C[3] = 10.0 * C[3] #WRIST
-    C[4] = 10.0 * C[4] #WRIST_ROTATE
-    C[5] = 100.0 * C[5] #GRIPPER
-    return C
 
-
-def sensitivity2(C):
-    # Multipliers
-    C[0] = 30.0 * C[0]  #BASE
-    C[1] = 0.01 * C[1]         #SHOULDER
-    C[2] = 0.01 * C[2]         #ELBOW
-    C[3] = 10.0 * C[3]  #WRIST
-    C[4] = 10.0 * C[4]  #WRIST_ROTATE
-    C[5] = 100.0 * C[5] #GRIPPER
-    return C
-
-
-
-
-
- 
 
 
