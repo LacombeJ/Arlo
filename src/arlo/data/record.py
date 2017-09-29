@@ -587,7 +587,7 @@ class Control_IK_SE(Control_Interface):
             -pc.LY(),               # SHOULDER
             -pc.RY(),               # ELBOW
             -lt + rt,               # WRIST
-            pc.LX(),                # WRIST_ROTATE
+            pc.RX(),                # WRIST_ROTATE
             (-pc.L1() + pc.R1()),   # GRIPPER 
         ]
         
