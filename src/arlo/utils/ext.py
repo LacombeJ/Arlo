@@ -49,7 +49,6 @@ def unpack_datetime(array):
     
 def delta_ms(timedelta):
     return timedelta.total_seconds() * 1000
-    
 
 class TimeStamper(object):
     
@@ -77,6 +76,42 @@ class TimeStamper(object):
     def last_time_ms(self):
         return self._times[-1]
     
+
+   
+class TimeSync(object):
+    
+    # time_frames array of ms differences
+    # time datetime
+    # offset ms
+    def __init__(self, time_frames, time=None, offset=0):
+        self._time_frames = time_frames
+        self._time = time
+        self._offset = offset
+        self._index = 0
+        if self._time==None:
+            self._time = datetime.now()
+        
+    # This class takes in an array of ms diff (for ex: [0, 1, 2, 3])
+    # and returns (next,index,done) where next is True if index was changed
+    # since last call and where index is equal to the current time frame
+    # equivalent, and where done is True if all time frames have been passed
+    # Ex:
+    # Two methods that call sync [0, 1000, 2000, 3000, 4000] with the same
+    # initial datetime, continously on separate threads
+    # would return True every second at the same time
+    # Ex:
+    # Sync returns True once for every element in time_frames
+    def sync(self):
+        if self._index >= len(self._time_frames):
+            return False, self._index, True
+        time = datetime.now()
+        delta = delta_ms(time - self._time)
+        next = False
+        index = self._index
+        if delta >= self._time_frames[self._index]+self._offset:
+            next = True
+            self._index += 1
+        return next, index, False
         
         
 class TimeRate(object):

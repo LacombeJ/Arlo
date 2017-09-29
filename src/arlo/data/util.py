@@ -13,6 +13,7 @@ import data_config as dc
 import arlo.utils.config as config
 import arlo.utils.log as log
 import arlo.utils.term as term
+import arlo.utils.ext as ext
 
 
 # Creates and returns a logger
@@ -97,6 +98,9 @@ class FrameModule(object):
     def save(self,save_data):
         pass
         
+    def delete(self):
+        pass
+        
     def setFinishValues(self, exited, save_prop, save):
         self._exited = exited
         self._save_prop = save_prop
@@ -113,6 +117,8 @@ def translate(node,otype,value):
         return cv2.VideoCapture(node.path()+value)
     if otype=='json_data':
         return config.read(node.path()+value).get('data')
+    if otype=='datetime':
+        return ext.unpack_datetime(value)
     return None
     
     

@@ -78,6 +78,12 @@ DS      = 430.0         # Shoulder servo difference equivalent to 45 degrees (pi
 DE      = 430.0         # Elbow servo difference equivalent to 45 degrees (pi/4 radians)
 PI_2    = math.pi / 2   # PI over 2 (90 deg)
 PI_4    = math.pi / 4   # PI over 4 (45 deg)
+def _elastic():
+    theta_max = ((E_MID - RANGES[ELBOW][MIN]) / DE) * PI_4
+    alpha = theta_max + PI_2
+    elastic = math.sqrt( EL**2 + SL**2 - 2*EL*SL*math.cos(alpha) )
+    return elastic
+ELASTIC = _elastic()
 
 class RobotArm(object):
 
@@ -148,9 +154,9 @@ class RobotArm(object):
         cmd = "#0P1500S200#1P1600S200#2P1400S200#3P1500S200#4P1450S200#5P1400S250\r"
         os.write(self._USB,cmd)
         
-    # Returns the positions of the arms servos
+    # Returns copy of the positions of the arms servos
     def get_pos(self):
-        return self._position
+        return list(self._position)
         
     # Checks if the servo move is valid and if it is, update internal position
     def _check_move_servo(self,i,pos):
@@ -282,9 +288,35 @@ class RobotArm(object):
         ]
 
         return ik_pos
-
-
+    
+    
     def _displace_IK(self,C):
+        # We call displace_IK twice because of 'elastic limiting'
+        # Analogy: Suppose we want to go up stairs
+        # ----
+        #     |b   c
+        #     ----
+        #         |a
+        #         ----
+        #             |
+        # Trying to go directly from point a to point b will cause us to collide with the steps
+        # Instead we go from point a to point c, and then from point c to point b
+        x = C[1]
+        y = C[2]
+        C[1] = x
+        C[2] = 0
+        C = self._displace_IK2(C)
+        ds = C[1]
+        de = C[2]
+        C[1] = 0
+        C[2] = y
+        C = self._displace_IK2(C)
+        C[1] += ds
+        C[2] += de
+        return C
+    
+    # Jonathan
+    def _displace_IK2(self,C):
         
         # X,Y displacement in cm
         x = C[1]
@@ -320,11 +352,18 @@ class RobotArm(object):
         # Displace pos (cm)
         new_wx = pos_wx + x
         new_wy = pos_wy + y
-        print new_wx, new_wy
+        
         # --------------------------------------------------
         
         # Find appropriate angles of shoulder and elbow for the new pos
         dWS_targ = math.sqrt(new_wx**2 + new_wy**2)
+        
+        # Limit elastic band
+        if dWS_targ > ELASTIC and dWS_targ > dWS:
+            C[1] = 0
+            C[2] = 0
+            return C
+        
         phi_targ = math.acos(new_wx / dWS_targ)
         
         angDWS = math.acos( alim( ( SL**2 + EL**2 - dWS_targ**2) / (2*SL*EL) ) )
@@ -334,9 +373,6 @@ class RobotArm(object):
         
         #TODO jonathan find right method to compensate for acos() mapping
         theta_e_targ = angDWS - PI_2
-        
-        print math.degrees(theta_s_targ)
-        print math.degrees(theta_e_targ)
         
         # Find corresponding new servo pos
         PS_targ = S_MID - theta_s_targ * DS / PI_4

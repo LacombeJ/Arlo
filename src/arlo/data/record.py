@@ -6,6 +6,7 @@ This module contains functions for recording data
 
 '''
 
+import os
 import rospy
 from std_msgs.msg import Float32MultiArray
 import cv2
@@ -161,6 +162,10 @@ def record_session():
         
         print 'Recording saved.'
     else:
+        for module in modules:
+            module.delete()
+        sub.unsafe_erase()
+        
         print 'Recording discarded.'
 
 
@@ -248,12 +253,12 @@ class CameraModule(FrameModule):
         return True
         
     def finish(self):
+        self._out.release() #Video out file is saved
         self._cap.release()
         cv2.destroyAllWindows()
         return self.getFinishValues()
        
     def save(self, data):
-        self._out.release() #Video out file is saved
         
         frame_times = self._time_stamper.times_ms()
         time_file_data = {
@@ -269,8 +274,9 @@ class CameraModule(FrameModule):
         data['video_frame_times'] = self._time_file
         data['video_duration'] = frame_times[-1]
 
-
-
+    def delete(self):
+    
+        os.remove(self._path+self._file)
 
 
 
@@ -282,6 +288,7 @@ class CameraModule(FrameModule):
 # ------------- Module for recording input from PS4 controller ------------- #
 
 #TODO jonathan create a super class that LeapModule and ControlModule extends
+#TODO update this module to match updates ControlModule
 class LeapModule(FrameModule):
     
     # ---------------------------------------------------------------------- #
@@ -334,10 +341,14 @@ class LeapModule(FrameModule):
             self.setFinishValues(True,True,False)
             return False
         
-        POS = self._update(self._pc)
+        cont, write, POS = self._update(self._pc)
+            
+        if not cont:
+            return False
         
-        self._time_stamper.stamp()
-        self._controls.append(POS)
+        if write:
+            self._time_stamper.stamp()
+            self._controls.append(POS)
          
         return True
             
@@ -439,10 +450,15 @@ class ControlModule(FrameModule):
                 self.setFinishValues(True,True,False)
                 return False
             
-            POS = self._update(self._pc)
+            cont, write, POS = self._update(self._pc)
             
-            self._time_stamper.stamp()
-            self._controls.append(POS)
+            if not cont:
+                return False
+            
+            if write:
+                self._time_stamper.stamp()
+                self._controls.append(POS)
+            
          
         return True
             
@@ -489,9 +505,9 @@ class ControlModuleArm(ControlModule):
     def _update(self,pc):
     
         if pc.home():
-            POS = self._arm.center()
+            POS = True, self._arm.center(), self._arm.get_pos()
         else:
-            POS = self._control.control(self._arm,pc)
+            POS = True, self._control.control(self._arm,pc), self._arm.get_pos()
         
         return POS
         
@@ -511,12 +527,12 @@ class ControlModuleROS(ControlModule):
         
     def _update(self,C,pc):
         if rospy.is_shutdown():
-            return False
+            return False, None, None
         msg = Float32MultiArray()
         msg.data = C
         self._pub.publish(msg)
         self._rate.sleep()
-        return True
+        return True, True, C
         
     def _destroy(self):
         pass

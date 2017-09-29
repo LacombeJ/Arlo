@@ -36,7 +36,7 @@ log_prop        = config_data['log_prop']
 
 logger = util.create_logger(log_prop)
 
-window_pos = [(32,32), (700,32), (32, 500), (700,500)]
+window_pos = [(128,64), (900,64), (128, 500), (900,500)]
 window_handler = util.WindowHandler(window_pos)
 
 
@@ -78,8 +78,19 @@ def playback_session(index=-1):
     print term.GREEN+'Camera: '+term.END+str(camera)
     print term.GREEN+'Control: '+term.END+str(control)
     
-    video_module = VideoModule('Playback Window')
-    output_module = OutputModuleROS('Capture Window') #Arm | ROS
+    video_datetime = sub.get('video_datetime',otype='datetime')
+    control_datetime = sub.get('control_datetime',otype='datetime')
+    
+    # Video - control synchronization
+    diff_ms = ext.delta_ms(control_datetime - video_datetime)
+    sync_ms = 3000 # Give it an extra 3000 seconds, to start
+    
+    video_ms = sync_ms
+    control_ms = sync_ms + diff_ms
+    start_time = ext.datetime.now()
+    
+    video_module = VideoModule('Playback Window',start_time,video_ms)
+    output_module = OutputModuleArm('Capture Window',start_time,control_ms) #Arm | ROS
     
     # Add playback modules
     modules = []
@@ -130,9 +141,11 @@ def playback_session(index=-1):
 
 class VideoModule(FrameModule):
     
-    def __init__(self,frame_name='Playback Window'):
+    def __init__(self,frame_name='Playback Window',start=None,sync=0):
         FrameModule.__init__(self)
         self._frame_name = frame_name
+        self._start = start
+        self._sync = sync
     
     def start(self,sub):
         
@@ -142,9 +155,10 @@ class VideoModule(FrameModule):
         self._cap = sub.get('video_file',otype='video_cap')
         self._frame_times = sub.get('video_frame_times',otype='json_data')
         
-        self._time_stamper = ext.TimeStamper()
+        self._time_sync = ext.TimeSync(self._frame_times,self._start,self._sync)
         
-        self._index = 0
+        self._first_frame = True
+        self._has_frame = False
         self._frame = None
         if self._cap.isOpened():
             print 'Press '+term.BOLD+term.CYAN+'ESC'+term.END+" in '{}' to finish.".format(self._frame_name)
@@ -154,32 +168,31 @@ class VideoModule(FrameModule):
     
     def loop(self):
         
-        first_frame = self._index == 0
         exit = False
         
-        if self._index >= len(self._frame_times):
+        next, index, done = self._time_sync.sync()
+        if done:
             return False
-        
-        if self._index==0 or self._time_stamper.last_time_ms() > self._frame_times[self._index]:
+        if next:
             ret, self._frame = self._cap.read()
-            self._index += 1
+            self._has_frame = True
             if ret == False:
                 exit = True
         
         if exit == True:
             return False
         
-        self._time_stamper.stamp()
-        
-        wait_key = cv2.waitKey(1) & 0xFF
-        
-        if wait_key == 27: #ESC to escape
-            return False
-        
-        cv2.imshow(self._frame_name,self._frame)
-        
-        if first_frame:
-            window_handler.new_window(self._frame_name)
+        if self._has_frame:
+            wait_key = cv2.waitKey(1) & 0xFF
+            
+            if wait_key == 27: #ESC to escape
+                return False
+            
+            cv2.imshow(self._frame_name,self._frame)
+            
+            if self._first_frame:
+                window_handler.new_window(self._frame_name)
+                self._first_frame = False
     
         return True
         
@@ -196,9 +209,11 @@ class VideoModule(FrameModule):
 
 class OutputModule(FrameModule):
     
-    def __init__(self,frame_name):
+    def __init__(self,frame_name,start=None,sync=0):
         FrameModule.__init__(self)
         self._frame_name = frame_name
+        self._start = start
+        self._sync = sync
     
     # ---------------------------------------------------------------------- #
     
@@ -226,10 +241,11 @@ class OutputModule(FrameModule):
         self._controls = sub.get('control_file',otype='json_data')
         self._frame_times = sub.get('control_frame_times',otype='json_data')
         
-        self._time_stamper = ext.TimeStamper()
+        self._time_sync = ext.TimeSync(self._frame_times,self._start,self._sync)
         
-        self._index = 0
         self._frame = None
+        
+        self._first_frame = True
         
         self._has_cap = False
         if self._cap.isOpened():
@@ -243,19 +259,14 @@ class OutputModule(FrameModule):
         
 
     def loop(self):
-        
-        first_frame = self._index == 0
-        
-        if self._index >= len(self._frame_times):
+    
+        next, index, done = self._time_sync.sync()
+        if done:
             return False
-        
-        if self._index==0 or self._time_stamper.last_time_ms() > self._frame_times[self._index]:
-            C = self._controls[self._index]
+        if next:
+            C = self._controls[index]
             if not self._update(C):
                 return False
-            self._index += 1
-        
-        self._time_stamper.stamp()
         
         ret, frame = self._cap.read()
         
@@ -267,8 +278,9 @@ class OutputModule(FrameModule):
                 return False
             
             cv2.imshow(self._frame_name,frame)
-            if first_frame:
+            if self._first_frame:
                 window_handler.new_window(self._frame_name)
+                self._first_frame = False
         
         return True
             
@@ -288,7 +300,7 @@ class OutputModuleArm(OutputModule):
         self._arm.create()
         
     def _update(self,C):
-        self._arm.displace(C)
+        self._arm.move(C)
         return True
         
     def _destroy(self):
