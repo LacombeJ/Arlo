@@ -94,27 +94,67 @@ class RobotArm(object):
         self._usb_file = '/dev/ttyUSB0'
         
         # Initialize internal position array to center position for each servo
-        self._position = [
-            1500,
-            1500,
-            1250,
-            1500,
-            1350,
-            1600
-        ]
+        self._position = list(DEFAULT)
         
+    
     # Attempts to initialize al5d and open the usb file
-    # Returns false if failed
+    # Returns None if succeeded or error_string if failed
     def create(self):
-        if not self._initialize():
-            print "Failed to initialize usb connection to robotic hand"
-            return False
-        return True
         
+        exists = os.path.isfile(self._usb_file)
+        if not exists: 
+            return "File {} does not exist".format(self._usb_file)
+        
+        self._USB = os.open(self._usb_file, os.O_RDWR | os.O_NONBLOCK | os.O_NDELAY)
+        
+        if(self._USB < 0):
+            return "Error({}) opening '{}'".format(self._USB,self._usb_file)
+        
+        tty = termios.tcgetattr(self._USB)
+        if tty == None:
+            return 'Error getting tty attributes'
+        
+        self._memset_tty(tty)
+        
+        # Set Baud rate
+        tty[OSPEED] = termios.B9600
+        tty[ISPEED] = termios.B9600
+        
+        # Set TTY flags
+        tty[CFLAG]              &= ~termios.PARENB  # make 8n1
+        tty[CFLAG]              &= ~termios.CSTOPB
+        tty[CFLAG]              &= ~termios.CSIZE
+        tty[CFLAG]              |=  termios.CS8
+        tty[CFLAG]              &= ~termios.CRTSCTS # no flow control
+        tty[LFLAG]              =   0               # no signal chars, no echo, no canonical processing
+        tty[OFLAG]              =   0               # no remapping, no delays
+        tty[CC][termios.VMIN]   =   0               # read doesn't block
+        tty[CC][termios.VTIME]  =   5               # 0.5 seconds read timeout
+        
+        tty[CFLAG] |= termios.CREAD | termios.CLOCAL # turn on READ & ignore ctrl lines
+        tty[IFLAG] &= ~(termios.IXON | termios.IXOFF | termios.IXANY) # turn off s/w flow ctrl
+        tty[LFLAG] &= ~(termios.ICANON | termios.ECHO | termios.ECHOE | termios.ISIG) # make raw
+        tty[OFLAG] &= ~termios.OPOST #makr raw
+        
+        # Flush port
+        termios.tcflush(self._USB, termios.TCIFLUSH)
+        
+        # Apply attributes, check for error
+        error = termios.tcsetattr(self._USB, termios.TCSANOW, tty)
+        
+        if error != None: 
+            return "Error({}) setting tty attributes".format(error)
+            
+        self.set_to_mid()
+        
+        return None
+        
+    
     # Closes the USB file
     def destroy(self):
         os.close(self._USB)
         
+    
     # Move to the new pos defined by the given array if move is within ranges
     def move(self,new_pos):
         command = ""
@@ -173,54 +213,6 @@ class RobotArm(object):
             return True
         
         return False # No need to move
-        
-    # Opens the tty USB file and sets the Robot to it's mid position
-    def _initialize(self):
-        
-        self._USB = os.open(self._usb_file, os.O_RDWR | os.O_NONBLOCK | os.O_NDELAY)
-        
-        if(self._USB < 0):
-            print "Error({}) opening '{}'".format(self._USB,self._usb_file)
-        
-        tty = termios.tcgetattr(self._USB)
-        if tty == None:
-            print 'Error getting tty attributes'
-        
-        self._memset_tty(tty)
-        
-        # Set Baud rate
-        tty[OSPEED] = termios.B9600
-        tty[ISPEED] = termios.B9600
-        
-        # Set TTY flags
-        tty[CFLAG]              &= ~termios.PARENB  # make 8n1
-        tty[CFLAG]              &= ~termios.CSTOPB
-        tty[CFLAG]              &= ~termios.CSIZE
-        tty[CFLAG]              |=  termios.CS8
-        tty[CFLAG]              &= ~termios.CRTSCTS # no flow control
-        tty[LFLAG]              =   0               # no signal chars, no echo, no canonical processing
-        tty[OFLAG]              =   0               # no remapping, no delays
-        tty[CC][termios.VMIN]   =   0               # read doesn't block
-        tty[CC][termios.VTIME]  =   5               # 0.5 seconds read timeout
-        
-        tty[CFLAG] |= termios.CREAD | termios.CLOCAL # turn on READ & ignore ctrl lines
-        tty[IFLAG] &= ~(termios.IXON | termios.IXOFF | termios.IXANY) # turn off s/w flow ctrl
-        tty[LFLAG] &= ~(termios.ICANON | termios.ECHO | termios.ECHOE | termios.ISIG) # make raw
-        tty[OFLAG] &= ~termios.OPOST #makr raw
-        
-        # Flush port
-        termios.tcflush(self._USB, termios.TCIFLUSH)
-        
-        # Apply attributes, check for error
-        error = termios.tcsetattr(self._USB, termios.TCSANOW, tty)
-        
-        if error != None:
-            print "Error({}) setting tty attributes".format(error)
-            return False
-            
-        self.set_to_mid()
-        
-        return True
     
     # Sets the first 6 values of the tty attrib array to 0
     def _memset_tty(self,tty):

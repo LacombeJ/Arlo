@@ -108,24 +108,29 @@ def playback_session(index=-1):
     print 'Starting to playback...'
     print 'Press '+term.BOLD+term.RED+'CTRL+C'+term.END+' in terminal to stop.'
     
-    for module in modules:
-        module.start(sub)
+    #for module in modules:
+    #    module.start(sub)
+        
+    modules = [module for module in modules if module.start(sub)]
+    
+    started_modules = list(modules)
     
     try:
         loop = True
         while loop:
-            for module in modules:
-                mod_loop = module.loop()
-                if not mod_loop:
-                    loop = False
-                    break
+            modules = [module for module in modules if module.loop()]
+            
+            # All modules are done
+            if len(modules)==0:
+                break
+    
     except KeyboardInterrupt:
         print ""
         quit()
     
     print 'Playback finished.'
     
-    for module in modules:
+    for module in started_modules:
         module.finish()
 
 
@@ -163,8 +168,12 @@ class VideoModule(FrameModule):
         if self._cap.isOpened():
             print 'Press '+term.BOLD+term.CYAN+'ESC'+term.END+" in '{}' to finish.".format(self._frame_name)
         else:
-            logger.log('error','Video capture failed - no video capture device found')
-            quit()
+            logger.log('error','Video playback failed - video cannot be opened')
+            
+            self._cap.release()
+            return False
+            
+        return True
     
     def loop(self):
         
@@ -247,6 +256,11 @@ class OutputModule(FrameModule):
         
         self._first_frame = True
         
+        created = self._create()
+        if not created:
+            self._cap.release()
+            return False
+        
         self._has_cap = False
         if self._cap.isOpened():
             self._has_cap = True
@@ -254,7 +268,7 @@ class OutputModule(FrameModule):
         else:
             logger.log('error','No video capture device found')
             
-        self._create()
+        return True
 
         
 
@@ -297,7 +311,14 @@ class OutputModuleArm(OutputModule):
 
     def _create(self):
         self._arm = al5d.RobotArm()
-        self._arm.create()
+        
+        error = self._arm.create()
+        
+        if not error:
+            return True
+            
+        logger.log('error','AL5D arm failed to initialize: {}'.format(error))
+        return False
         
     def _update(self,C):
         self._arm.move(C)
@@ -316,6 +337,7 @@ class OutputModuleROS(OutputModule):
         self._pub = rospy.Publisher('al5d', Float32MultiArray, queue_size=10)
         rospy.init_node('al5d_pub', anonymous=True)
         self._rate = rospy.Rate(60)
+        return True
         
     def _update(self,C):
         if rospy.is_shutdown():
