@@ -106,10 +106,9 @@ def record_session():
     # Start recording
     logger.log('info','Recording index: {}'.format(record_count))
     print 'Starting to record...'
-    print 'Press '+term.BOLD+term.RED+'CTRL+C'+term.END+' in terminal to stop and discard video.'
-    
-    for module in modules:
-        module.start(sub_path)
+    print 'Press '+term.BOLD+term.RED+'CTRL+C'+term.END+' in terminal to stop and discard video.'    
+        
+    modules = [module for module in modules if module.start(sub_path)]
         
     try:
         loop = True
@@ -222,6 +221,8 @@ class CameraModule(FrameModule):
         else:
             logger.log('error','Video capture failed - no video capture device found')
             quit()
+            
+        return True
     
     def loop(self):
     
@@ -329,6 +330,8 @@ class LeapModule(FrameModule):
         print 'Press '+term.BOLD+term.GREEN+'TRIANGLE'+term.END+' on the PS4 controller to save and exit.'
         print 'Press '+term.BOLD+term.RED+'CIRCLE'+term.END+' on the PS4 controller to discard and exit.'
         
+        return True
+        
 
     def loop(self):
         self._pc.poll()
@@ -428,11 +431,15 @@ class ControlModule(FrameModule):
         if not created:
             logger.log('error','Error finding PS4 controller')
             quit()
-            
-        self._create()
+        
+        created = self._create()
+        if not created:
+            return False
         
         print 'Press '+term.BOLD+term.GREEN+'TRIANGLE'+term.END+' on the PS4 controller to save and exit.'
         print 'Press '+term.BOLD+term.RED+'CIRCLE'+term.END+' on the PS4 controller to discard and exit.'
+        
+        return True
         
 
     def loop(self):
@@ -499,8 +506,11 @@ class ControlModuleArm(ControlModule):
 
     def _create(self):
         self._arm = al5d.RobotArm()
-        self._arm.create()
+        err = self._arm.create()
+        if err != None:
+            return False
         self._control = Control_IK_SE()
+        return True
         
     def _update(self,pc):
     
@@ -524,6 +534,7 @@ class ControlModuleROS(ControlModule):
         self._pub = rospy.Publisher('al5d', Float32MultiArray, queue_size=10)
         rospy.init_node('al5d_pub', anonymous=True)
         self._rate = rospy.Rate(60)
+        return True
         
     def _update(self,C,pc):
         if rospy.is_shutdown():

@@ -101,7 +101,12 @@ class RobotArm(object):
     # Returns None if succeeded or error_string if failed
     def create(self):
         
-        exists = os.path.isfile(self._usb_file)
+        try:
+            os.stat(self._usb_file)
+            exists = True
+        except OSError:
+            exists = False
+        
         if not exists: 
             return "File {} does not exist".format(self._usb_file)
         

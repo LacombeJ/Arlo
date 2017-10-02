@@ -108,20 +108,17 @@ def playback_session(index=-1):
     print 'Starting to playback...'
     print 'Press '+term.BOLD+term.RED+'CTRL+C'+term.END+' in terminal to stop.'
     
-    #for module in modules:
-    #    module.start(sub)
-        
     modules = [module for module in modules if module.start(sub)]
     
-    started_modules = list(modules)
+    loop_modules = list(modules)
     
     try:
         loop = True
         while loop:
-            modules = [module for module in modules if module.loop()]
+            loop_modules = [module for module in loop_modules if module.loop()]
             
             # All modules are done
-            if len(modules)==0:
+            if len(loop_modules)==0:
                 break
     
     except KeyboardInterrupt:
@@ -130,7 +127,7 @@ def playback_session(index=-1):
     
     print 'Playback finished.'
     
-    for module in started_modules:
+    for module in modules:
         module.finish()
 
 
