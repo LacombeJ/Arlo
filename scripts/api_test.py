@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import arlo.api.project as project
-import arlo.api.entry as entry
 import arlo.api.module as module
 
 import arlo.utils.log as log

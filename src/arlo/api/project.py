@@ -6,7 +6,6 @@ This module contains functions for loading and managing projects
 
 '''
 
-import entry
 import module
 import _util as util
 
@@ -51,15 +50,40 @@ def load(path):
     return Project(root)
     
 
+class ProjectNode(object):
+    
+    def __init__(self,project,node):
+        self._project = project
+        self._node = node
+        self._name = self._node.directory_name()
+        
+    def path(self):
+        return self._node.absolute_path()
+        
+    def relative_path(self):
+        return self._node.path()
+        
+    def name(self):
+        return self._name
+        
+    def get(self,key,otype=None):
+        return util.translate(self._project._translators,self.relative_path(),otype,self._node.get(key))
+        
+    def set(self,key,value):
+        self._node.set(key,value)
+        
+    def save(self):
+        self._node.save()
+
 
         
 
-class Project(util.ProjectNode):
+class Project(ProjectNode):
 
     # ----------------------------------------------- #
 
     def __init__(self,root):
-        util.ProjectNode.__init__(self,self,root)
+        ProjectNode.__init__(self,self,root)
         self._data_dir = self._node.get('data_directories')
         self._entry_count = len(self._data_dir)
         self._logger = log.Logger()
@@ -76,7 +100,7 @@ class Project(util.ProjectNode):
         if new:
             sub.unsafe_erase()
             return None
-        return entry.Entry(self,sub)
+        return Entry(self,sub)
         
     def getLogger(self):
         return self._logger
@@ -95,6 +119,13 @@ class Project(util.ProjectNode):
     # ----------------------------------------------- #
         
         
+
+
+
+class Entry(ProjectNode):
+
+    def __init__(self,project,sub):
+        ProjectNode.__init__(self,project,sub)
 
 
         

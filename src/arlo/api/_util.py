@@ -7,7 +7,6 @@ This module contains utility functions for api calls
 '''
 
 import project
-import entry
 
 import arlo.utils.config as config
 import arlo.utils.ext as ext
@@ -15,32 +14,6 @@ import arlo.utils.term as term
 
 import cv2
 
-
-
-class ProjectNode(object):
-    
-    def __init__(self,project,node):
-        self._project = project
-        self._node = node
-        self._name = self._node.directory_name()
-        
-    def path(self):
-        return self._node.absolute_path()
-        
-    def relative_path(self):
-        return self._node.path()
-        
-    def name(self):
-        return self._name
-        
-    def get(self,key,otype=None):
-        return util.translate(self._project._translators,self.relative_path(),otype,self._node.get(key))
-        
-    def set(self,key,value):
-        self._node.set(key,value)
-        
-    def save(self):
-        self._node.save()
 
 
 
@@ -174,7 +147,7 @@ def record(proj,modules,require=True):
         
         log.debug('Recording saved.')
         
-        return entry.Entry(proj,sub)
+        return project.Entry(proj,sub)
         
     # Discard recording and delete created files
     else:
