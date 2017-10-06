@@ -10,6 +10,7 @@ import arlo.output.al5d as al5d
 
 import arlo.utils.ext as ext
 import arlo.utils.log as log
+import arlo.utils.term as term
 
 import os
 import cv2
@@ -173,8 +174,18 @@ class FrameModule_CV(Module):
         Module.__init__(self)
         self._frame_name = name
         
+    def onStart(self,parent,path):
+        self._log.debug('Press '+term.BOLD+term.CYAN+'ESC'+term.END+" in '{}' to finish.".format(self._frame_name))
+        return True
+        
     def onUpdate(self,parent):
         cv2.imshow(self._frame_name,parent.frame())
+        
+        wait_key = cv2.waitKey(1) & 0xFF
+        
+        if wait_key == 27: #ESC to escape
+            return False
+        
         return True
         
     def onFinish(self,parent):
