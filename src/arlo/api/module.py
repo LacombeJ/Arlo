@@ -21,6 +21,7 @@ class Module(object):
         self._save_property = False
         self._save = False
         self._log = logger
+        self._data = None #Used by playback modules
         
     # ---------------------------------------------------------------------------------- #
         

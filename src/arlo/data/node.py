@@ -47,7 +47,7 @@ class _Node(object):
         if otype==None:
             return value
         else:
-            return self._translate(self,otype,value)
+            return self._translate(self.path(),otype,value)
     
     # Adds key and value pair to meta data
     def set(self,key,value):
