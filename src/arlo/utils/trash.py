@@ -78,7 +78,7 @@ def _ymd():
 
 
 
-
+# TODO update trash._Node and trash.delete function with new version of node (if needed)
 # From arlo.utils.node (to avoid circular dependency)
 # Delete method from node.py is removed
 '''

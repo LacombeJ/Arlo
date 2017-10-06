@@ -48,11 +48,7 @@ class EntryRecorder(module.Module):
         data['annotation'] = ""
         data['comments'] = ""
 
-proj.addRecordingModule(EntryRecorder)
-proj.addRecordingModule(module.ModuleCameraExtended)
-proj.addRecordingModule(module.ModuleAl5dps4Extended)
-
-
+record_modules = (EntryRecorder, module.ModuleCameraExtended, module.ModuleAl5dps4Extended)
 
 
 # -------------------------------------------------------------------- #
@@ -67,9 +63,9 @@ proj.addRecordingModule(module.ModuleAl5dps4Extended)
 
 print 'Entry count', proj.entry_count()
 
+entry = proj.record(record_modules)
 
 
-entry = proj.record()
 
 print entry
 

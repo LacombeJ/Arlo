@@ -5,7 +5,7 @@ node.py
 This module contains functions for reading and writing data in
 a file structure along with metadata
 
-version 1.2
+version 1.3
 '''
 
 import os
@@ -52,6 +52,10 @@ class _Node(object):
     # Adds key and value pair to meta data
     def set(self,key,value):
         self._config[key] = value
+    
+    # Returns a copy of key-value dict
+    def getValues(self):
+        return dict(self._config)
     
     # Adds multiple key, value pairs
     def setValues(self,configs):

@@ -67,7 +67,15 @@ def translate(translators,path,otype,value):
 
 
 
-def record(proj,require=True):
+
+
+
+
+# -------------------------------------------------------------------------- #
+# --------------------------------- RECORD --------------------------------- #
+# -------------------------------------------------------------------------- #
+
+def record(proj,modules,require=True):
 
     log = proj.getLogger()
 
@@ -80,10 +88,11 @@ def record(proj,require=True):
     sub_data = { }
     
     # Create and add modules
-    modules = [module() for module in proj._rec_modules]
+    modules = [module() for module in modules]
     
+    # Run module.init
     for module in modules:
-        module.setLogger(log)
+        module.init(log)
     
     # Run module.start and filter successful modules
     modules_dropped = False
@@ -101,16 +110,16 @@ def record(proj,require=True):
             
     modules = modules_start
     
-    record = True
+    start = True
     b_save_prop = False
     b_save = False
         
     if len(modules) == 0:
         log.error('No modules available to record')
-        record = False
+        start = False
         exit = True
 
-    if record:
+    if start:
 
         # Start recording
         log.debug('Recording index: {}'.format(data_increment))
@@ -176,4 +185,104 @@ def record(proj,require=True):
         log.debug('Recording not saved.')
         
         return None
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# -------------------------------------------------------------------------- #
+# -------------------------------- PLAYBACK -------------------------------- #
+# -------------------------------------------------------------------------- #
+
+
+def playback(proj,modules,index=-1,require=True):
+
+    log = proj.getLogger()
+
+    data_increment = proj._node.get(project.INCREMENT)
+    data_directories = proj._node.get(project.DIRECTORIES)
+    
+    rec_dir = data_directories[index]
+    sub, new = root.load(rec_dir)
+    if new:
+        log.error('Playback failed, entry does not exist.')
+        sub.unsafe_erase()
+        return None
+    sub_path = sub.path()
+    
+    sub_data = sub.getData()
+    
+    # Create and add modules
+    modules = [module() for module in modules]
+    
+    def mod_translate(path,otype,value):
+        return translate(proj._translators,path,otype,value)
+    
+    # Run module.init
+    for module in modules:
+        module.init(log,sub_data,mod_translate)
+    
+    # Run module.start and filter successful modules
+    modules_dropped = False
+    modules_start = []
+    for module in modules:
+        if module.start(proj._node.path()):
+            modules_start.append(module)
+        else:
+            modules_dropped = True
+            
+    if require and modules_dropped:
+        log.error('All modules are required to playback yet not all were successful.')
+        sub.unsafe_erase()
+        return None
+            
+    modules = modules_start
+    
+    b_save_prop = False
+    b_save = False
+        
+    if len(modules) == 0:
+        log.error('No modules available to playback')
+        return
+
+    # Start playback
+    log.debug('Playback index: {}'.format(data_increment))
+    log.debug('Starting to playback...')
+    log.debug('Press '+term.BOLD+term.RED+'CTRL+C'+term.END+' in terminal to stop.')
+    
+    # Run module.update loop
+    loop_modules = list(modules)
+    try:
+        while True:
+            loop_modules = [module for module in loop_modules if module.update()]
+            
+            # All modules are done
+            if len(loop_modules)==0:
+                break
+    except KeyboardInterrupt:
+        pass
+    
+    log.debug('Playback finished.')
+    
+    # Run module.finish
+    for module in modules:
+        module.finish()
+
+
+
 

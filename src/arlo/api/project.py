@@ -62,7 +62,6 @@ class Project(util.ProjectNode):
         util.ProjectNode.__init__(self,self,root)
         self._data_dir = self._node.get('data_directories')
         self._entry_count = len(self._data_dir)
-        self._rec_modules = []
         self._logger = log.Logger()
         self._translators = []
     
@@ -85,16 +84,13 @@ class Project(util.ProjectNode):
     def setLogger(self,logger):
         self._logger = logger
         
-    # ----------------------------------------------- #
-        
     def addTranslator(self,translator):
         self._translators.append(translator)
         
-    def addRecordingModule(self,mod):
-        self._rec_modules.append(mod)
+    # ----------------------------------------------- #
         
-    def record(self):
-        return util.record(self)
+    def record(self, modules):
+        return util.record(self, modules)
         
     # ----------------------------------------------- #
         

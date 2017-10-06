@@ -12,16 +12,47 @@ import arlo.utils.log as log
 
 import cv2
 
+
+
+
+
+
+# Types of modules: record, playback, edit, play
 class Module(object):
 
-    def __init__(self,logger=log.Logger()):
+    def __init__(self):
         self._parent = None
         self._children = []
         self._exited = False
         self._save_property = False
         self._save = False
-        self._log = logger
-        self._data = None #Used by playback modules
+        
+        # Used by timesync
+        self._index = 0
+        self._times = []
+        
+        # Set externally
+        self._log = None
+        self._data = None
+        self._translate = None
+        
+    def get(self,key,otype=None,path=None):
+        value = self._data[key]
+        if otype == None:
+            return value
+        return self._translate(path,otype,value)
+        
+    def getIndex(self):
+        return self._index
+        
+    def setIndex(self,index):
+        self._index = index
+        
+    def getTimes(self):
+        return self._times
+        
+    def setTimes(self,times):
+        self._times = times
         
     # ---------------------------------------------------------------------------------- #
         
@@ -44,11 +75,19 @@ class Module(object):
         self._save_property = True
         self._save = False
         return False
-        
-    def setLogger(self,log):
-        self._log = log
-        
+    
     # ---------------------------------------------------------------------------------- #
+      
+    # Set universal variables and passes along submodules  
+    def init(self,log=log.Logger(),data=None,translate=None):
+        
+        self._log = log
+        self._data = data
+        self._translate = translate
+        
+        self.onInit(self._parent,log,data,translate)
+        for child in self._children:
+            child.init(log,data,translate)
         
     def start(self,path):
         if not self.onStart(self._parent,path):
@@ -84,36 +123,74 @@ class Module(object):
     
     # ---------------------------------------------------------------------------------- #
     
+    # Implemented by ( record, playback, edit, play )
+    def onInit(self,parent,log,data,translate):
+        pass
+    
+    # Implemented by ( record, playback, edit, play )
     def onStart(self,parent,path):
         return True
         
+    # Implemented by ( record, playback,       play )
     def onUpdate(self,parent):
         return True
         
+    # Implemented by ( record, playback, edit, play )
     def onFinish(self,parent):
         pass
         
+    # Implemented by ( record,           edit       )
     def onSave(self,parent,data):
         pass
         
+    # Implemented by ( record,           edit       )
     def onDelete(self,parent):
         pass
     
     # ---------------------------------------------------------------------------------- #
     
-    
 
-class ModuleCamera(Module):
+
+
+
+
+
+
+
+
+
+
+
+# ----------------------------------- Generic Modules ----------------------------------- #
+
+# Child module of a frame module
+# frame modules implement frame() which returns an image
+class FrameModule_CV(Module):
+    
+    def __init__(self, name):
+        Module.__init__(self)
+        self._frame_name = name
+        
+    def onStart(self,parent,path):
+        return True
+        
+    def onUpdate(self,parent):
+        cv2.imshow(self._frame_name,parent.frame())
+        return True
+        
+    def onFinish(self,parent):
+        cv2.destroyAllWindows()
+
+
+# Does not implement onStart
+class VideoCaptureModule(Module):
     
     def __init__(self):
         Module.__init__(self)
     
+    # Init: self._cap [cv2.VideoCapture]
     def onStart(self,parent,path):
-        self._cap = cv2.VideoCapture(0)
-        if not self._cap.isOpened():
-            self._log.warn('Video capture failed - no video capture device found')
-            return False
-        return True
+        raise NotImplementedError('onStart')
     
     def onUpdate(self,parent):
         ret, self._frame = self._cap.read()
@@ -124,12 +201,118 @@ class ModuleCamera(Module):
     def onFinish(self,parent):
         self._cap.release()
         return self.getFinishValues()
-       
-    def onSave(self,parent,data):
-        pass
 
+    def frame(self):
+        return self._frame
+
+
+
+class Al5dModule(Module):
+
+    def __init__(self):
+        Module.__init__(self)
+        
+    def onStart(self,parent,path):
+        self._arm = al5d.RobotArm()
+        err = self._arm.create()
+        if err != None:
+            self._log.warn('AL5D arm failed to be initialized - {}'.format(err))
+            return False
+        
+        return True
+        
+    def onFinish(self,parent):
+        self._arm.destroy()
+        
+    def center(self):
+        return self._arm.center()
+        
+    def move(self,C):
+        return self._arm.move(C)
+        
+    def displace(self,C):
+        return self._arm.displace(C)
+        
+    def displace_IK(self,C):
+        return self._arm.displace_IK(C)
+        
+    def get_pos(self):
+        return self._arm.get_pos()
+
+
+# Synchronizes module update function
+class TimeSyncModule(Module):
+    
+    def __init__(self,module,frame_times,start=None,sync=0):
+        Module.__init__(self)
+        self._mod = module
+        self._start = start
+        self._sync = sync
+        
+    def onInit(self,parent,log,data,translate):
+        self._mod.init(log,data,translate)
+        
+    def onStart(self,parent,path):
+        if not self._mod.start(path):
+            return False
+        self._time_sync = ext.TimeSync(self._mod.getTimes(),self._start,self._sync)
+        return True
+        
+    def onUpdate(self,parent):
+        next, index, done = self._time_sync.sync()
+        
+        if done:
+            return False
+            
+        if next:
+            self._mod.setIndex(index)
+            if not self._mod.update():
+                return False
+                
+        return True
+        
+    def onFinish(self,parent):
+        self._mod.finish()
+        
+    def onSave(self,parent,data):
+        self._mod.save(data)
+        
     def onDelete(self,parent):
-        pass
+        self._mod.delete()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ----------------------------------- Recording Modules ----------------------------------- #
+    
+    
+
+class ModuleCamera(VideoCaptureModule):
+    
+    def __init__(self):
+        VideoCaptureModule.__init__(self)
+    
+    def onStart(self,parent,path):
+        self._cap = cv2.VideoCapture(0)
+        if not self._cap.isOpened():
+            self._log.warn('Video capture failed - no video capture device found')
+            return False
+        return True
 
 
 class ModuleTime(Module):
@@ -181,7 +364,7 @@ class ModuleCamera_Video(Module):
         return True
     
     def onUpdate(self,parent):
-        self._out.write(parent._frame)
+        self._out.write(parent.frame())
         return True
         
     def onSave(self,parent,data):
@@ -191,26 +374,6 @@ class ModuleCamera_Video(Module):
         
     def onDelete(self,parent):
         os.remove(self._path+self._file)
-
-# Child module of CameraModule
-class ModuleCamera_CV(Module):
-    
-    def __init__(self):
-        Module.__init__(self)
-        
-    def onStart(self,parent,path):
-        self._frame_name = "Recording Window"
-        log.debug('Press '+term.BOLD+term.CYAN+'ESC'+term.END+" in '{}' to finish.".format(self._frame_name))
-        log.debug('Press '+term.BOLD+term.GREEN+'S'+term.END+" in '{}' to finish.".format(self._frame_name))
-        log.debug('Press '+term.BOLD+term.RED+'N'+term.END+" in '{}' to finish.".format(self._frame_name))
-        return True
-        
-    def onUpdate(self,parent):
-        cv2.imshow(self._frame_name,parent._frame)
-        return True
-        
-    def onFinish(self,parent):
-        cv2.destroyAllWindows()
 
         
 class ModuleCameraExtended(ModuleCamera):
@@ -324,15 +487,18 @@ class ModuleAl5dps4(Module):
         # method is called (REF#1)
         self._mod_ps4 = ModulePs4()
         self._mod_ps4_ikal5d = ModulePs4_ikal5d()
+        self._mod_arm = Al5dModule()
         
         self._mod_ps4.append(self._mod_ps4_ikal5d)
         
+    def onInit(self,parent,log,data,translate):
+        self._mod_ps4.init(log,data,translate)
+        self._mod_ps4_ikal5d.init(log,data,translate)
+        self._mod_arm.init(log,data,translate)
+        
     def onStart(self,parent,path):
         
-        self._arm = al5d.RobotArm()
-        err = self._arm.create()
-        if err != None:
-            self._log.warn('AL5D arm failed to be initialized - {}'.format(err))
+        if not self._mod_arm.start(path):
             return False
         
         if not self._mod_ps4.start(path):
@@ -355,23 +521,17 @@ class ModuleAl5dps4(Module):
                 return False
                 
             if self._mod_ps4.controller().home():
-                self._changed = self._arm.center()
-                self._position = self._arm.get_pos()
+                self._changed = self._mod_arm.center()
+                self._position = self._mod_arm.get_pos()
             else:
-                self._changed = self._arm.displace(self._mod_ps4_ikal5d.control())
-                self._position = self._arm.get_pos()
+                self._changed = self._mod_arm.displace_IK(self._mod_ps4_ikal5d.control())
+                self._position = self._mod_arm.get_pos()
         
         return True
         
     def onFinish(self,parent):
-        self._arm.destroy()
+        self._mod_arm.finish()
         self._mod_ps4.finish()
-        
-    def onSave(self,parent,data):
-        self._mod_ps4.save()
-        
-    def onDelete(self,parent):
-        self._mod_ps4.delete()
     
     def changed(self):
         return self._changed
@@ -385,6 +545,9 @@ class ModuleAl5dps4_Control(Module):
     def __init__(self):
         Module.__init__(self)
         self._mod_time = ModuleTime('control')
+        
+    def onInit(self,parent,log,data,translate):
+        self._mod_time.init(log,data,translate)
         
     def onStart(self,parent,path):
     
@@ -425,19 +588,89 @@ class ModuleAl5dps4Extended(ModuleAl5dps4):
     def __init__(self):
         ModuleAl5dps4.__init__(self)
         self.append(ModuleAl5dps4_Control())
+
+
+
+
+
+
+
+
+
+
+# ----------------------------------- Playback Modules ----------------------------------- #
+
+class ModuleVideo(VideoCaptureModule):
     
+    def __init__(self):
+        VideoCaptureModule.__init__(self)
+    
+    def onStart(self,parent,path):
+        self._cap = self.get('video_file',otype='video_cap',path=path)
+        
+        if not self._cap.isOpened():
+            self._log.warn('Video file not found.')
+            return False
+        return True
 
 
+class ModuleAl5dplayback(Module):
+
+    def __init__(self):
+        Module.__init__(self)
+        self._mod_arm = Al5dModule()
+        
+    def onInit(self,parent,log,data,translate):
+        self._mod_arm.init(log,data,translate)
+        
+    def onStart(self,parent,path):
+        
+        if not self._mod_arm.start(path):
+            return False
+        
+        self._controls = sub.get('control_file',otype='json_data')
+        
+        return True
+        
+    def onUpdate(self,parent):
+    
+        index = self.getIndex()
+        
+        if index >= len(self._controls):
+            return False
+        
+        self._mod_arm.move(self._controls[index])
+        
+        self.setIndex(index+1)
+    
+        return True
+        
+    def onFinish(self,parent):
+        self._mod_arm.finish()
 
 
+class ModuleVideoTime(ModuleVideo):
+
+    def __init__(self):
+        ModuleVideo.__init__(self)
+        
+    def onStart(self,parent,path):
+        if not ModuleVideo.onStart(self,parent,path):
+            return False
+        self.setTimes(self.get('video_frame_times',otype='json_data',path=path))
+        return True
 
 
+class ModuleAl5dplaybackTime(ModuleAl5dplayback):
 
-
-
-
-
-
+    def __init__(self):
+        ModuleAl5dplayback.__init__(self)
+        
+    def onStart(self,parent,path):
+        if not ModuleAl5dplayback.onStart(self,parent,path):
+            return False
+        self.setTimes(self.get('control_frame_times',otype='json_data',path=path))
+        return True
 
 
 
