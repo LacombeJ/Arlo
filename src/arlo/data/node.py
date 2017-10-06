@@ -5,7 +5,7 @@ node.py
 This module contains functions for reading and writing data in
 a file structure along with metadata
 
-version 1.1
+version 1.2
 '''
 
 import os
@@ -17,7 +17,7 @@ import arlo.utils.trash as trash
 # Loads or creates a directory and meta data
 # Returns node, new if directory is created
 def load(name,translate=None):
-    if not io.dir_exists(name):
+    if not io.dir_exists(name+'/meta.json'):
         io.make_dir(name,False)
         return _Node(name,translate,False,''), True
     return _Node(name,translate,True,''), False
@@ -86,8 +86,17 @@ class _Node(object):
     def relative_path(self):
         return self._name
         
-    # Returns the path of this node ('parent_path/node_path/')
+    # Returns the path of this node relative to the working directory ('parent_path/node_path/')
     def path(self):
         return self._node_path
         
+    # Returns the absolute path of this node ('/../../../parent_path/node_path/')
+    def absolute_path(self):
+        return os.path.realpath(self._node_path)
+        
+    def directory_name(self):
+        _, dir_name = os.path.split(self.absolute_path())
+        return dir_name
+        
+    
 
