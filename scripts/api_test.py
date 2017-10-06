@@ -47,7 +47,11 @@ class EntryRecorder(module.Module):
         data['annotation'] = ""
         data['comments'] = ""
 
-record_modules = (EntryRecorder, module.ModuleCameraExtended, module.ModuleAl5dps4Extended)
+record_modules = (
+    EntryRecorder,
+    module.ModuleCameraExtendedcv,
+    #module.ModuleAl5dps4Extended
+)
 
 
 # -------------------------------------------------------------------- #

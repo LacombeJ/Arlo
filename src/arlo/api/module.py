@@ -8,8 +8,10 @@ This module contains functions for creating and extending module objects
 import arlo.input.ps4 as ps4
 import arlo.output.al5d as al5d
 
+import arlo.utils.ext as ext
 import arlo.utils.log as log
 
+import os
 import cv2
 
 
@@ -93,7 +95,7 @@ class Module(object):
         if not self.onStart(self._parent,path):
             return False
         for child in self._children:
-            if not child.start():
+            if not child.start(path):
                 return False
         return True
     
@@ -171,9 +173,6 @@ class FrameModule_CV(Module):
         Module.__init__(self)
         self._frame_name = name
         
-    def onStart(self,parent,path):
-        return True
-        
     def onUpdate(self,parent):
         cv2.imshow(self._frame_name,parent.frame())
         return True
@@ -200,7 +199,9 @@ class VideoCaptureModule(Module):
         
     def onFinish(self,parent):
         self._cap.release()
-        return self.getFinishValues()
+
+    def cap(self):
+        return self._cap
 
     def frame(self):
         return self._frame
@@ -353,11 +354,11 @@ class ModuleCamera_Video(Module):
     def onStart(self,parent,path):
         self._path = path
         self._file = 'video.avi'
-
+        print path
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
         fps = 30.0
-        self._width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self._height = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self._width = int(parent.cap().get(cv2.CAP_PROP_FRAME_WIDTH))
+        self._height = int(parent.cap().get(cv2.CAP_PROP_FRAME_HEIGHT))
         
         self._out = cv2.VideoWriter(self._path+self._file, fourcc, fps, (self._width,self._height))
         
@@ -383,7 +384,13 @@ class ModuleCameraExtended(ModuleCamera):
         self.append(ModuleTime('video'))
         self.append(ModuleCamera_Video())
 
-
+class ModuleCameraExtendedcv(ModuleCamera):
+    
+    def __init__(self):
+        ModuleCamera.__init__(self)
+        self.append(ModuleTime('video'))
+        self.append(ModuleCamera_Video())
+        self.append(FrameModule_CV('Recording Window'))
 
 
 class ModulePs4(Module):

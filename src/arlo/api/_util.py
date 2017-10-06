@@ -71,7 +71,7 @@ def record(proj,modules,require=True):
     modules_dropped = False
     modules_start = []
     for module in modules:
-        if module.start(proj._node.path()):
+        if module.start(sub_path):
             modules_start.append(module)
         else:
             modules_dropped = True
@@ -214,7 +214,7 @@ def playback(proj,modules,index=-1,require=True):
     modules_dropped = False
     modules_start = []
     for module in modules:
-        if module.start(proj._node.path()):
+        if module.start(sub_path):
             modules_start.append(module)
         else:
             modules_dropped = True
