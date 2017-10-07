@@ -50,7 +50,7 @@ class EntryRecorder(module.Module):
 record_modules = (
     EntryRecorder,
     module.ModuleCameraExtendedcv,
-    #module.ModuleAl5dps4Extended
+    module.ModuleAl5dps4Extended
 )
 
 

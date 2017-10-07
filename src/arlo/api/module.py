@@ -8,6 +8,7 @@ This module contains functions for creating and extending module objects
 import arlo.input.ps4 as ps4
 import arlo.output.al5d as al5d
 
+import arlo.utils.config as config
 import arlo.utils.ext as ext
 import arlo.utils.log as log
 import arlo.utils.term as term
@@ -117,7 +118,7 @@ class Module(object):
     def save(self,data):
         self.onSave(self._parent,data)
         for child in self._children:
-            child.save()
+            child.save(data)
             
     def delete(self):
         self.onDelete(self._parent)
@@ -379,6 +380,9 @@ class ModuleCamera_Video(Module):
         self._out.write(parent.frame())
         return True
         
+    def onFinish(self,parent):
+        self._out.release()
+        
     def onSave(self,parent,data):
         data['video_file'] = self._file
         data['video_width'] = self._width
@@ -406,24 +410,25 @@ class ModuleCameraExtendedcv(ModuleCamera):
 
 class ModulePs4(Module):
     
-    def __init__(self, controller=None):
+    def __init__(self, controller=None, ps4_config_id=0):
         Module.__init__(self)
         self._controller = controller
+        self._ps4_config_id = 0
         
     def onStart(self,parent,path):
         
         self._handle_controller = False
         
         if self._controller == None:
-            self._controller = ps4.PS4Controller(ps4_config_id)
+            self._controller = ps4.PS4Controller(self._ps4_config_id)
             created = self._controller.create()
             if not created:
                 self._log.warn('PS4 controller failed to be created')
                 return False
             self._handle_controller = True
         
-        log.debug('Press '+term.BOLD+term.GREEN+'TRIANGLE'+term.END+' on the PS4 controller to save and exit.')
-        log.debug('Press '+term.BOLD+term.RED+'CIRCLE'+term.END+' on the PS4 controller to discard and exit.')
+        self._log.debug('Press '+term.BOLD+term.GREEN+'TRIANGLE'+term.END+' on the PS4 controller to save and exit.')
+        self._log.debug('Press '+term.BOLD+term.RED+'CIRCLE'+term.END+' on the PS4 controller to discard and exit.')
         
         return True
         
@@ -542,7 +547,7 @@ class ModuleAl5dps4(Module):
                 self._changed = self._mod_arm.center()
                 self._position = self._mod_arm.get_pos()
             else:
-                self._changed = self._mod_arm.displace_IK(self._mod_ps4_ikal5d.control())
+                self._changed = self._mod_arm.displace_IK(self._mod_ps4_ikal5d.controls())
                 self._position = self._mod_arm.get_pos()
         
         return True

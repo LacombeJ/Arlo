@@ -46,6 +46,31 @@ logger = util.create_logger(log_prop)
 
 
 
+def record_multiple_sessions():
+    
+    run = True
+    
+    while run:
+    
+        arm = al5d.RobotArm()
+        err = arm.create()
+        if err != None:
+            logger.log('error','Error initializing arm - {}'.format(err))
+            
+        arm.destroy()
+    
+        print 'Press '+term.BOLD+term.PURPLE+'Enter'+term.END+' on terminal to record.'
+        print 'Enter '+term.BOLD+term.RED+'n'+term.END+' in terminal to exit.'
+        
+        response = raw_input("Continue? [Y/n] : ");
+        
+        if response=='N' or response=='n':
+            run = False
+        else:
+            record_session()
+        
+        
+        
 
 # -------------------------------------------------------------------------- #
 # --------------------------------- RECORD --------------------------------- #
