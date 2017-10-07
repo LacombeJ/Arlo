@@ -33,7 +33,8 @@ class Module(object):
         
         # Used by timesync
         self._index = 0
-        self._times = []
+        self._times = None
+        self._datetime = None #For synchronzing multiple modules
         
         # Set externally
         self._log = None
@@ -57,6 +58,12 @@ class Module(object):
         
     def setTimes(self,times):
         self._times = times
+        
+    def getDatetime(self):
+        return self._datetime
+        
+    def setDatetime(self,datetime):
+        self._datetime = datetime
         
     # ---------------------------------------------------------------------------------- #
         
@@ -254,21 +261,23 @@ class Al5dModule(Module):
 
 
 # Synchronizes module update function
-class TimeSyncModule(Module):
+class SingleSyncModule(Module):
     
-    def __init__(self,module,frame_times,start=None,sync=0):
+    def __init__(self,mod):
         Module.__init__(self)
-        self._mod = module
-        self._start = start
-        self._sync = sync
-        
+        self._mod = mod
+    
     def onInit(self,parent,log,data,translate):
         self._mod.init(log,data,translate)
         
     def onStart(self,parent,path):
         if not self._mod.start(path):
             return False
-        self._time_sync = ext.TimeSync(self._mod.getTimes(),self._start,self._sync)
+        
+        sync_ms = 1000 # Give an extra 1000 seconds to start
+        start_time = ext.datetime.now()
+        self._time_sync = ext.TimeSync(self._mod.getTimes(),start_time,sync_ms)
+        
         return True
         
     def onUpdate(self,parent):
@@ -292,6 +301,79 @@ class TimeSyncModule(Module):
         
     def onDelete(self,parent):
         self._mod.delete()
+
+
+# Synchronizes two modules update function
+class DoubleSyncModule(Module):
+    
+    def __init__(self,mod_a,mod_b):
+        Module.__init__(self)
+        self._mod_a = mod_a
+        self._mod_b = mod_b
+    
+    def onInit(self,parent,log,data,translate):
+        self._mod_a.init(log,data,translate)
+        self._mod_b.init(log,data,translate)
+        
+    def onStart(self,parent,path):
+        if not self._mod_a.start(path):
+            return False
+        
+        
+        if not self._mod_b.start(path):
+            return False
+        
+        diff_ms = ext.delta_ms( self._mod_a.getDatetime() - self._mod_b.getDatetime() )
+        
+        sync_ms = 1000 # Give an extra 1000 seconds to start
+        
+        b_ms = 0        + sync_ms
+        a_ms = diff_ms  + sync_ms
+        
+        start_time = ext.datetime.now()
+        
+        self._time_sync_a = ext.TimeSync(self._mod_a.getTimes(),start_time,a_ms)
+        self._time_sync_b = ext.TimeSync(self._mod_b.getTimes(),start_time,b_ms)
+        
+        return True
+        
+    def onUpdate(self,parent):
+        
+        # mod_a
+        next, index, done = self._time_sync_a.sync()
+        
+        if done:
+            return False
+            
+        if next:
+            self._mod_a.setIndex(index)
+            if not self._mod_a.update():
+                return False
+                
+        # mod_b
+        next, index, done = self._time_sync_b.sync()
+        
+        if done:
+            return False
+            
+        if next:
+            self._mod_b.setIndex(index)
+            if not self._mod_b.update():
+                return False
+                
+        return True
+        
+    def onFinish(self,parent):
+        self._mod_a.finish()
+        self._mod_b.finish()
+        
+    def onSave(self,parent,data):
+        self._mod_a.save(data)
+        self._mod_b.save(data)
+        
+    def onDelete(self,parent):
+        self._mod_a.delete()
+        self._mod_b.delete()
 
 
 
@@ -502,13 +584,13 @@ class ModulePs4_ikal5d(Module):
 
 class ModuleAl5dps4(Module):
 
-    def __init__(self):
+    def __init__(self, controller=None, ps4_config_id=0):
         Module.__init__(self)
         
         # Rather than appending submodules, we create modules and call
         # onMethods ourselves because we need to handle when ps4 polling update
         # method is called (REF#1)
-        self._mod_ps4 = ModulePs4()
+        self._mod_ps4 = ModulePs4(controller,ps4_config_id)
         self._mod_ps4_ikal5d = ModulePs4_ikal5d()
         self._mod_arm = Al5dModule()
         
@@ -608,8 +690,8 @@ class ModuleAl5dps4_Control(Module):
     
 class ModuleAl5dps4Extended(ModuleAl5dps4):
     
-    def __init__(self):
-        ModuleAl5dps4.__init__(self)
+    def __init__(self, controller=None, ps4_config_id=0):
+        ModuleAl5dps4.__init__(self, controller, ps4_config_id)
         self.append(ModuleAl5dps4_Control())
 
 
@@ -636,6 +718,11 @@ class ModuleVideo(VideoCaptureModule):
             return False
         return True
 
+class ModuleVideoCv(ModuleVideo):
+
+    def __init__(self):
+        ModuleVideo.__init__(self)
+        self.append(FrameModule_CV('Playback Window'))
 
 class ModuleAl5dplayback(Module):
 
@@ -651,12 +738,12 @@ class ModuleAl5dplayback(Module):
         if not self._mod_arm.start(path):
             return False
         
-        self._controls = sub.get('control_file',otype='json_data')
+        self._controls = self.get('control_file',otype='json_data',path=path)
         
         return True
         
     def onUpdate(self,parent):
-    
+        
         index = self.getIndex()
         
         if index >= len(self._controls):
@@ -672,7 +759,7 @@ class ModuleAl5dplayback(Module):
         self._mod_arm.finish()
 
 
-class ModuleVideoTime(ModuleVideo):
+class ModuleVideoSync(ModuleVideo):
 
     def __init__(self):
         ModuleVideo.__init__(self)
@@ -681,10 +768,16 @@ class ModuleVideoTime(ModuleVideo):
         if not ModuleVideo.onStart(self,parent,path):
             return False
         self.setTimes(self.get('video_frame_times',otype='json_data',path=path))
+        self.setDatetime(self.get('video_datetime',otype='datetime',path=path))
         return True
 
+class ModuleVideoSyncCv(ModuleVideoSync):
 
-class ModuleAl5dplaybackTime(ModuleAl5dplayback):
+    def __init__(self):
+        ModuleVideoSync.__init__(self)
+        self.append(FrameModule_CV('Playback Window'))
+
+class ModuleAl5dplaybackSync(ModuleAl5dplayback):
 
     def __init__(self):
         ModuleAl5dplayback.__init__(self)
@@ -693,6 +786,7 @@ class ModuleAl5dplaybackTime(ModuleAl5dplayback):
         if not ModuleAl5dplayback.onStart(self,parent,path):
             return False
         self.setTimes(self.get('control_frame_times',otype='json_data',path=path))
+        self.setDatetime(self.get('control_datetime',otype='datetime',path=path))
         return True
 
 

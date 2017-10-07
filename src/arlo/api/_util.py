@@ -191,14 +191,14 @@ def playback(proj,modules,index=-1,require=True):
     data_directories = proj._node.get(project.DIRECTORIES)
     
     rec_dir = data_directories[index]
-    sub, new = root.load(rec_dir)
+    sub, new = proj._node.load(rec_dir)
     if new:
         log.error('Playback failed, entry does not exist.')
         sub.unsafe_erase()
         return None
     sub_path = sub.path()
     
-    sub_data = sub.getData()
+    sub_data = sub.getValues()
     
     # Create and add modules
     modules = [module() for module in modules]
@@ -238,12 +238,18 @@ def playback(proj,modules,index=-1,require=True):
     log.debug('Starting to playback...')
     log.debug('Press '+term.BOLD+term.RED+'CTRL+C'+term.END+' in terminal to stop.')
     
-    # Run module.update loop
+    # Run module.update loop and call module.finish when update is done
     loop_modules = list(modules)
     try:
         while True:
             loop_modules = [module for module in loop_modules if module.update()]
-            
+            next_loop = []
+            for module in loop_modules:
+                if module.update():
+                    next_loop.append(module)
+                else:
+                    module.finish()
+            loop_modules = next_loop
             # All modules are done
             if len(loop_modules)==0:
                 break
@@ -251,11 +257,6 @@ def playback(proj,modules,index=-1,require=True):
         pass
     
     log.debug('Playback finished.')
-    
-    # Run module.finish
-    for module in modules:
-        module.finish()
-
 
 
 

@@ -113,8 +113,11 @@ class Project(ProjectNode):
         
     # ----------------------------------------------- #
         
-    def record(self, modules):
-        return util.record(self, modules)
+    def record(self, modules, require=True):
+        return util.record(self, modules, require)
+        
+    def playback(self, modules, index=-1, require=True):
+        return util.playback(self,modules,index,require)
         
     # ----------------------------------------------- #
         
