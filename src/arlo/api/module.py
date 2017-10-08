@@ -38,14 +38,10 @@ class Module(object):
         
         # Set externally
         self._log = None
-        self._data = None
-        self._translate = None
+        self._node = None
         
-    def get(self,key,otype=None,path=None):
-        value = self._data[key]
-        if otype == None:
-            return value
-        return self._translate(path,otype,value)
+    def get(self,key,otype=None):
+        return self._node.get(key,otype)
         
     def getIndex(self):
         return self._index
@@ -90,15 +86,14 @@ class Module(object):
     # ---------------------------------------------------------------------------------- #
       
     # Set universal variables and passes along submodules  
-    def init(self,log=log.Logger(),data=None,translate=None):
+    def init(self,log=log.Logger(),node=None):
         
         self._log = log
-        self._data = data
-        self._translate = translate
+        self._node = node
         
-        self.onInit(self._parent,log,data,translate)
+        self.onInit(self._parent,log,node)
         for child in self._children:
-            child.init(log,data,translate)
+            child.init(log,node)
         
     def start(self,path):
         if not self.onStart(self._parent,path):
@@ -135,7 +130,7 @@ class Module(object):
     # ---------------------------------------------------------------------------------- #
     
     # Implemented by ( record, playback, edit, play )
-    def onInit(self,parent,log,data,translate):
+    def onInit(self,parent,log,node):
         pass
     
     # Implemented by ( record, playback, edit, play )
@@ -267,8 +262,8 @@ class SingleSyncModule(Module):
         Module.__init__(self)
         self._mod = mod
     
-    def onInit(self,parent,log,data,translate):
-        self._mod.init(log,data,translate)
+    def onInit(self,parent,log,node):
+        self._mod.init(log,node)
         
     def onStart(self,parent,path):
         if not self._mod.start(path):
@@ -311,9 +306,9 @@ class DoubleSyncModule(Module):
         self._mod_a = mod_a
         self._mod_b = mod_b
     
-    def onInit(self,parent,log,data,translate):
-        self._mod_a.init(log,data,translate)
-        self._mod_b.init(log,data,translate)
+    def onInit(self,parent,log,node):
+        self._mod_a.init(log,node)
+        self._mod_b.init(log,node)
         
     def onStart(self,parent,path):
         if not self._mod_a.start(path):
@@ -448,7 +443,7 @@ class ModuleCamera_Video(Module):
     def onStart(self,parent,path):
         self._path = path
         self._file = 'video.avi'
-        print path
+        
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
         fps = 30.0
         self._width = int(parent.cap().get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -596,10 +591,10 @@ class ModuleAl5dps4(Module):
         
         self._mod_ps4.append(self._mod_ps4_ikal5d)
         
-    def onInit(self,parent,log,data,translate):
-        self._mod_ps4.init(log,data,translate)
-        self._mod_ps4_ikal5d.init(log,data,translate)
-        self._mod_arm.init(log,data,translate)
+    def onInit(self,parent,log,node):
+        self._mod_ps4.init(log,node)
+        self._mod_ps4_ikal5d.init(log,node)
+        self._mod_arm.init(log,node)
         
     def onStart(self,parent,path):
         
@@ -651,8 +646,8 @@ class ModuleAl5dps4_Control(Module):
         Module.__init__(self)
         self._mod_time = ModuleTime('control')
         
-    def onInit(self,parent,log,data,translate):
-        self._mod_time.init(log,data,translate)
+    def onInit(self,parent,log,node):
+        self._mod_time.init(log,node)
         
     def onStart(self,parent,path):
     
@@ -711,11 +706,16 @@ class ModuleVideo(VideoCaptureModule):
         VideoCaptureModule.__init__(self)
     
     def onStart(self,parent,path):
-        self._cap = self.get('video_file',otype='video_cap',path=path)
+        self._cap = self.get('video_file',otype='video_cap')
         
-        if not self._cap.isOpened():
+        if self._cap == None:
             self._log.warn('Video file not found.')
             return False
+        
+        if not self._cap.isOpened():
+            self._log.warn('Video file could not be opened.')
+            return False
+        
         return True
 
 class ModuleVideoCv(ModuleVideo):
@@ -730,15 +730,15 @@ class ModuleAl5dplayback(Module):
         Module.__init__(self)
         self._mod_arm = Al5dModule()
         
-    def onInit(self,parent,log,data,translate):
-        self._mod_arm.init(log,data,translate)
+    def onInit(self,parent,log,node):
+        self._mod_arm.init(log,node)
         
     def onStart(self,parent,path):
         
         if not self._mod_arm.start(path):
             return False
         
-        self._controls = self.get('control_file',otype='json_data',path=path)
+        self._controls = self.get('control_file',otype='json_data')
         
         return True
         
@@ -767,8 +767,8 @@ class ModuleVideoSync(ModuleVideo):
     def onStart(self,parent,path):
         if not ModuleVideo.onStart(self,parent,path):
             return False
-        self.setTimes(self.get('video_frame_times',otype='json_data',path=path))
-        self.setDatetime(self.get('video_datetime',otype='datetime',path=path))
+        self.setTimes(self.get('video_frame_times',otype='json_data'))
+        self.setDatetime(self.get('video_datetime',otype='datetime'))
         return True
 
 class ModuleVideoSyncCv(ModuleVideoSync):
@@ -785,8 +785,8 @@ class ModuleAl5dplaybackSync(ModuleAl5dplayback):
     def onStart(self,parent,path):
         if not ModuleAl5dplayback.onStart(self,parent,path):
             return False
-        self.setTimes(self.get('control_frame_times',otype='json_data',path=path))
-        self.setDatetime(self.get('control_datetime',otype='datetime',path=path))
+        self.setTimes(self.get('control_frame_times',otype='json_data'))
+        self.setDatetime(self.get('control_datetime',otype='datetime'))
         return True
 
 

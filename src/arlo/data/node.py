@@ -44,6 +44,7 @@ class _Node(object):
     # Returns value from given key or value given by translator if otype is not None
     def get(self,key,otype=None):
         value = self._config.get(key)
+        
         if otype==None:
             return value
         else:

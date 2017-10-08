@@ -89,8 +89,9 @@ class EntryPlayback(module.Module):
         
 def ModuleVideoSync():
     mod_a = module.ModuleVideoSyncCv()
-    mod_b = module.ModuleAl5dplaybackSync()
-    sync = module.DoubleSyncModule(mod_a,mod_b)
+    #mod_b = module.ModuleAl5dplaybackSync()
+    sync = module.SingleSyncModule(mod_a)
+    #sync = module.DoubleSyncModule(mod_a,mod_b)
     return sync
     
         
@@ -104,7 +105,7 @@ playback_modules = (
 
 #print 'Entry count', proj.entry_count()
 
-entry = proj.record(record_modules)
+#entry = proj.record(record_modules)
 
 '''
 
@@ -130,7 +131,7 @@ while record_loop:
 
 '''
 
-#proj.playback(playback_modules)
+proj.playback(playback_modules)
 
 
 

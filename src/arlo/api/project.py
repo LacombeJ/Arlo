@@ -10,9 +10,11 @@ import module
 import _util as util
 
 import os
+import cv2
 
 import arlo.data.node as node
 import arlo.utils.config as config
+import arlo.utils.ext as ext
 import arlo.utils.log as log
 
 
@@ -33,8 +35,8 @@ DIRECTORIES = 'data_directories'
 
 
 
-def load(path):
-    root, new = node.load(path)
+def load(path,translate=None):
+    root, new = node.load(path, util._addTranslator(translate))
     if new:
         root.set(META_LABEL,    META)
         root.set(VERSION_LABEL, VERSION)
@@ -67,13 +69,14 @@ class ProjectNode(object):
         return self._name
         
     def get(self,key,otype=None):
-        return util.translate(self._project._translators,self.relative_path(),otype,self._node.get(key))
+        return self._node.get(key,otype)
         
     def set(self,key,value):
         self._node.set(key,value)
         
     def save(self):
         self._node.save()
+
 
 
         
@@ -87,7 +90,6 @@ class Project(ProjectNode):
         self._data_dir = self._node.get('data_directories')
         self._entry_count = len(self._data_dir)
         self._logger = log.Logger()
-        self._translators = []
     
     # ----------------------------------------------- #
     
@@ -107,9 +109,6 @@ class Project(ProjectNode):
         
     def setLogger(self,logger):
         self._logger = logger
-        
-    def addTranslator(self,translator):
-        self._translators.append(translator)
         
     # ----------------------------------------------- #
         

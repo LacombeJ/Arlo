@@ -15,11 +15,7 @@ import arlo.utils.term as term
 import cv2
 
 
-
-
-
-# Default Translator
-def default_translate(path,otype,value):
+def _default_translate(path,otype,value):
     if otype=='video_cap':
         return cv2.VideoCapture(path+value)
     if otype=='json_data':
@@ -28,18 +24,15 @@ def default_translate(path,otype,value):
         return ext.unpack_datetime(value)
     return None
 
-# Translate
-def translate(translators,path,otype,value):
-    if otype==None:
-        return value
-    for T in translators:
-        trans = T(path,otype,value)
-        if trans != None:
-            return trans
-    return default_translate(path,otype,value)
-
-
-
+def _addTranslator(translator):
+    def translate(path,otype,value):
+        ret = None
+        if translator != None:
+            ret = translator(path,otype,value)
+        if ret == None:
+            ret = _default_translate(path,otype,value)
+        return ret
+    return translate
 
 
 
@@ -196,19 +189,15 @@ def playback(proj,modules,index=-1,require=True):
         log.error('Playback failed, entry does not exist.')
         sub.unsafe_erase()
         return None
-    sub_path = sub.path()
     
-    sub_data = sub.getValues()
+    sub_path = sub.path()
     
     # Create and add modules
     modules = [module() for module in modules]
     
-    def mod_translate(path,otype,value):
-        return translate(proj._translators,path,otype,value)
-    
     # Run module.init
     for module in modules:
-        module.init(log,sub_data,mod_translate)
+        module.init(log,sub)
     
     # Run module.start and filter successful modules
     modules_dropped = False
@@ -221,7 +210,6 @@ def playback(proj,modules,index=-1,require=True):
             
     if require and modules_dropped:
         log.error('All modules are required to playback yet not all were successful.')
-        sub.unsafe_erase()
         return None
             
     modules = modules_start
