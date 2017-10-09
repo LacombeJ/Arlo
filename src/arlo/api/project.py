@@ -46,8 +46,10 @@ def load(path,translate=None):
         root.save()
     else:
         if root.get(META_LABEL) != META:
+            print "Error loading project: Wrong meta type"
             return None
         if root.get(VERSION_LABEL) != VERSION:
+            print "Error loading project: Wrong version"
             return None
     return Project(root)
     

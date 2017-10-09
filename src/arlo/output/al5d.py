@@ -196,7 +196,14 @@ class RobotArm(object):
         
     # Sets the robot arm to its center position
     def set_to_mid(self):
-        cmd = "#0P1500S200#1P1600S200#2P1400S200#3P1500S200#4P1450S200#5P1400S250\r"
+        cmd = ""
+        cmd += "#0P{}S200".format(DEFAULT[0])
+        cmd += "#1P{}S200".format(DEFAULT[1])
+        cmd += "#2P{}S200".format(DEFAULT[2])
+        cmd += "#3P{}S200".format(DEFAULT[3])
+        cmd += "#4P{}S200".format(DEFAULT[4])
+        cmd += "#5P{}S200".format(DEFAULT[5])
+        cmd += "\r"
         os.write(self._USB,cmd)
         
     # Returns copy of the positions of the arms servos

@@ -137,10 +137,21 @@ class TimeRate(object):
         if self._time == None:
             self._time = datetime.now()
         else:
-            diff = delta_ms(datetime.now() - self._time)
+            diff_ms = delta_ms(datetime.now() - self._time)
             if diff_ms < ms:
                 time.sleep((ms - diff_ms)/1000.0)
                 self._time = datetime.now()
             
+   
+class Timer(object):
+
+    def __init__(self):
+        self._time = datetime.now()
+        
+    def within(self,ms):
+        diff_ms = delta_ms(datetime.now() - self._time)
+        if diff_ms < ms:
+            return True
+        return False
         
     

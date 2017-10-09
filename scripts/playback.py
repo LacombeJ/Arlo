@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import arlo.data.playback as play
+import arlo.main as main
 import arlo.utils.args as args
 
 
@@ -11,8 +11,10 @@ arg0 = args.get_arg(0)
 if arg0 is not None:
     index = int(arg0)    
 
+proj = main.ConsoleProject()
 
-play.playback_session(index)
+proj.playback(index)
+
 
 
 

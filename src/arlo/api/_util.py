@@ -222,27 +222,24 @@ def playback(proj,modules,index=-1,require=True):
         return
 
     # Start playback
-    log.debug('Playback index: {}'.format(data_increment))
+    log.debug('Playback index: {}'.format(index))
     log.debug('Starting to playback...')
     log.debug('Press '+term.BOLD+term.RED+'CTRL+C'+term.END+' in terminal to stop.')
     
-    # Run module.update loop and call module.finish when update is done
-    loop_modules = list(modules)
+    # Run module.update loop
     try:
-        while True:
-            loop_modules = [module for module in loop_modules if module.update()]
-            next_loop = []
-            for module in loop_modules:
-                if module.update():
-                    next_loop.append(module)
-                else:
-                    module.finish()
-            loop_modules = next_loop
-            # All modules are done
-            if len(loop_modules)==0:
-                break
+        loop = True
+        while loop:
+            for module in modules:
+                if not module.update():
+                    loop = False
+                    break
     except KeyboardInterrupt:
         pass
+    
+    # Run module.finish
+    for module in modules:
+        module.finish()
     
     log.debug('Playback finished.')
 

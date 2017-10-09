@@ -173,16 +173,22 @@ class Module(object):
 # frame modules implement frame() which returns an image
 class FrameModule_CV(Module):
     
-    def __init__(self, name):
+    def __init__(self, name, pos=(0,0)):
         Module.__init__(self)
         self._frame_name = name
+        self._pos = pos
         
     def onStart(self,parent,path):
+        self._first_frame = True
         self._log.debug('Press '+term.BOLD+term.CYAN+'ESC'+term.END+" in '{}' to finish.".format(self._frame_name))
         return True
         
     def onUpdate(self,parent):
         cv2.imshow(self._frame_name,parent.frame())
+        
+        if self._first_frame:
+            cv2.moveWindow(self._frame_name,self._pos[0],self._pos[1])
+            self._first_frame = False
         
         wait_key = cv2.waitKey(1) & 0xFF
         
@@ -237,6 +243,7 @@ class Al5dModule(Module):
         return True
         
     def onFinish(self,parent):
+        self._arm.center()
         self._arm.destroy()
         
     def center(self):
@@ -320,7 +327,7 @@ class DoubleSyncModule(Module):
         
         diff_ms = ext.delta_ms( self._mod_a.getDatetime() - self._mod_b.getDatetime() )
         
-        sync_ms = 1000 # Give an extra 1000 seconds to start
+        sync_ms = 3000 # Give an extra 3000 seconds to start
         
         b_ms = 0        + sync_ms
         a_ms = diff_ms  + sync_ms
@@ -479,10 +486,10 @@ class ModuleCameraExtended(ModuleCamera):
 class ModuleCameraExtendedcv(ModuleCamera):
     
     def __init__(self):
-        ModuleCamera.__init__(self)
+        ModuleCamera.__init__(self,pos=(0,0))
         self.append(ModuleTime('video'))
         self.append(ModuleCamera_Video())
-        self.append(FrameModule_CV('Recording Window'))
+        self.append(FrameModule_CV('Recording Window',pos))
 
 
 class ModulePs4(Module):
@@ -720,9 +727,9 @@ class ModuleVideo(VideoCaptureModule):
 
 class ModuleVideoCv(ModuleVideo):
 
-    def __init__(self):
+    def __init__(self,pos=(0,0)):
         ModuleVideo.__init__(self)
-        self.append(FrameModule_CV('Playback Window'))
+        self.append(FrameModule_CV('Playback Window',pos))
 
 class ModuleAl5dplayback(Module):
 
@@ -773,9 +780,9 @@ class ModuleVideoSync(ModuleVideo):
 
 class ModuleVideoSyncCv(ModuleVideoSync):
 
-    def __init__(self):
+    def __init__(self, pos=(0,0)):
         ModuleVideoSync.__init__(self)
-        self.append(FrameModule_CV('Playback Window'))
+        self.append(FrameModule_CV('Playback Window',pos))
 
 class ModuleAl5dplaybackSync(ModuleAl5dplayback):
 
