@@ -95,7 +95,7 @@ class Project(ProjectNode):
     
     # ----------------------------------------------- #
     
-    def entry_count(self):
+    def entryCount(self):
         return self._entry_count
         
     def entry(self,index):
@@ -105,6 +105,16 @@ class Project(ProjectNode):
             sub.unsafe_erase()
             return None
         return Entry(self,sub)
+        
+    def getEntries(self,filter_func=None):
+        entries = []
+        for i in range(self._entry_count):
+            e = self.entry(i)
+            if filter_func = None:
+                entries.append(e)
+            else if filter_func(e):
+                entries.append(e)
+        return entries
         
     def getLogger(self):
         return self._logger
@@ -118,7 +128,7 @@ class Project(ProjectNode):
         return util.record(self, modules, require)
         
     def playback(self, modules, index=-1, require=True):
-        return util.playback(self,modules,index,require)
+        return util.playback(self, modules, index, require)
         
     # ----------------------------------------------- #
         
