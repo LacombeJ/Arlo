@@ -485,8 +485,8 @@ class ModuleCameraExtended(ModuleCamera):
 
 class ModuleCameraExtendedcv(ModuleCamera):
     
-    def __init__(self):
-        ModuleCamera.__init__(self,pos=(0,0))
+    def __init__(self,pos=(0,0)):
+        ModuleCamera.__init__(self)
         self.append(ModuleTime('video'))
         self.append(ModuleCamera_Video())
         self.append(FrameModule_CV('Recording Window',pos))
