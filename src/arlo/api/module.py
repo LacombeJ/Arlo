@@ -584,7 +584,59 @@ class ModulePs4_ikal5d(Module):
         return self._IK_C
 
 
-class ModuleAl5dps4(Module):
+class ModuleAl5d(Module):
+
+    def __init__(self):
+        Module.__init__(self)
+        self._mod_arm = Al5dModule()
+        
+    def onInit(self,parent,log,node):
+        self._mod_arm.init(log,node)
+        
+    def onStart(self,parent,path):
+        
+        if not self._mod_arm.start(path):
+            return False
+            
+        self._position = None
+        self._time_rate = ext.TimeRate()
+        
+        return True
+        
+    # Override this
+    def onUpdate(self,parent):
+        return True
+        
+    def onFinish(self,parent):
+        self._mod_arm.finish()
+    
+    def rate(self):
+        return self._time_rate
+    
+    def arm(self):
+        return self._mod_arm
+    
+    def center(self):
+        self._changed = self._mod_arm.center()
+        self._position = self._mod_arm.get_pos()
+    
+    def displace_IK(self,ik):
+        self._changed = self._mod_arm.displace_IK(ik)
+        self._position = self._mod_arm.get_pos()
+    
+    def changed(self):
+        return self._changed
+        
+    def setChanged(self,changed):
+        self._changed = changed
+        
+    def position(self):
+        return self._position
+    
+    def setPosition(self,position):
+        self._position = position
+
+class ModuleAl5d_Ps4(Module):
 
     def __init__(self, controller=None, ps4_config_id=0):
         Module.__init__(self)
@@ -594,60 +646,86 @@ class ModuleAl5dps4(Module):
         # method is called (REF#1)
         self._mod_ps4 = ModulePs4(controller,ps4_config_id)
         self._mod_ps4_ikal5d = ModulePs4_ikal5d()
-        self._mod_arm = Al5dModule()
-        
         self._mod_ps4.append(self._mod_ps4_ikal5d)
         
     def onInit(self,parent,log,node):
+        #do not need to init ps4_ikal5d since it is a child of ps4
         self._mod_ps4.init(log,node)
-        self._mod_ps4_ikal5d.init(log,node)
-        self._mod_arm.init(log,node)
         
     def onStart(self,parent,path):
-        
-        if not self._mod_arm.start(path):
-            return False
-        
         if not self._mod_ps4.start(path):
             return False
-            
-        self._position = None
-        self._time_rate = ext.TimeRate()
-        
         return True
         
     def onUpdate(self,parent):
     
-        self._changed = False
-    
+        parent.setChanged(False)
+        
         # This is to avoid sending too much data to arm which may cause an IOError (REF#1)
-        if self._time_rate.rate(40):
+        if parent.rate().rate(40):
         
             if not self._mod_ps4.update():
                 self.setExitFlags(self._mod_ps4.getExitFlags())
                 return False
                 
             if self._mod_ps4.controller().home():
-                self._changed = self._mod_arm.center()
-                self._position = self._mod_arm.get_pos()
+                parent.center()
             else:
-                self._changed = self._mod_arm.displace_IK(self._mod_ps4_ikal5d.controls())
-                self._position = self._mod_arm.get_pos()
+                parent.displace_IK(self._mod_ps4_ikal5d.controls())
         
         return True
         
     def onFinish(self,parent):
-        self._mod_arm.finish()
         self._mod_ps4.finish()
-    
-    def changed(self):
-        return self._changed
+
+
+
+class ModuleAl5d_Leap(Module):
+
+    def __init__(self, controller=None, ps4_config_id=0):
+        Module.__init__(self)
         
-    def position(self):
-        return self._position
+        # Rather than appending submodules, we create modules and call
+        # onMethods ourselves because we need to handle when ps4 polling update
+        # method is called (REF#1)
+        self._mod_ps4 = ModulePs4(controller,ps4_config_id)
+        self._mod_ps4_ikal5d = ModulePs4_ikal5d()
+        self._mod_ps4.append(self._mod_ps4_ikal5d)
+        
+    def onInit(self,parent,log,node):
+        #do not need to init ps4_ikal5d since it is a child of ps4
+        self._mod_ps4.init(log,node)
+        
+    def onStart(self,parent,path):
+        if not self._mod_ps4.start(path):
+            return False
+        return True
+        
+    def onUpdate(self,parent):
+    
+        parent.setChanged(False)
+        
+        # This is to avoid sending too much data to arm which may cause an IOError (REF#1)
+        if parent.rate().rate(40):
+        
+            if not self._mod_ps4.update():
+                self.setExitFlags(self._mod_ps4.getExitFlags())
+                return False
+                
+            if self._mod_ps4.controller().home():
+                parent.center()
+            else:
+                parent.displace_IK(self._mod_ps4_ikal5d.controls())
+        
+        return True
+        
+    def onFinish(self,parent):
+        self._mod_ps4.finish()
 
 
-class ModuleAl5dps4_Control(Module):
+
+# Records controls
+class ModuleAl5d_Control(Module):
 
     def __init__(self):
         Module.__init__(self)
@@ -690,11 +768,12 @@ class ModuleAl5dps4_Control(Module):
         self._mod_time.save(data)
     
     
-class ModuleAl5dps4Extended(ModuleAl5dps4):
+class ModuleAl5dPs4control(ModuleAl5d):
     
     def __init__(self, controller=None, ps4_config_id=0):
-        ModuleAl5dps4.__init__(self, controller, ps4_config_id)
-        self.append(ModuleAl5dps4_Control())
+        ModuleAl5d.__init__(self)
+        self.append(ModuleAl5d_Ps4(controller,ps4_config_id))
+        self.append(ModuleAl5d_Control())
 
 
 

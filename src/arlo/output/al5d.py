@@ -265,6 +265,8 @@ class RobotArm(object):
         if cos < 0: cos = 0 #Added these two lines because of math error
         if cos > 1: cos = 1
         
+        a2 = math.acos(cos);
+        
         # Shoulder angle
         shl_angle_r = a1 + a2
         if math.isnan(shl_angle_r) or math.isinf(shl_angle_r):

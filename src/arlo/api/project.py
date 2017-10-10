@@ -106,13 +106,18 @@ class Project(ProjectNode):
             return None
         return Entry(self,sub)
         
+    def entries(self,func):
+        for i in range(self._entry_count):
+            e = self.entry(i)
+            func(e)
+        
     def getEntries(self,filter_func=None):
         entries = []
         for i in range(self._entry_count):
             e = self.entry(i)
-            if filter_func = None:
+            if filter_func == None:
                 entries.append(e)
-            else if filter_func(e):
+            elif filter_func(e):
                 entries.append(e)
         return entries
         

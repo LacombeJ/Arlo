@@ -71,6 +71,8 @@ def record(proj,modules,require=True):
             
     if require and modules_dropped:
         log.error('All modules are required to record yet not all were successful.')
+        for module in modules:
+            module.delete()
         sub.unsafe_erase()
         return None
             

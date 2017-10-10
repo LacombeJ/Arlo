@@ -19,7 +19,7 @@ class ConsoleProject(object):
         self._record_modules = (
             EntryRecorder,
             module.ModuleCameraExtendedcv,
-            module.ModuleAl5dps4Extended
+            module.ModuleAl5dPs4control
         )
         
         self._playback_modules = (
@@ -61,13 +61,13 @@ class EntryRecorder(module.Module):
         
     def onSave(self,parent,data):
     
-        data['user'] = 'jon'
-        data['task'] = 1000
-        data['camera'] = None
-        data['control'] = None
+        data['user']        = 'jon'     # ally  | ryan  | jon 
+        data['task']        = 1000      # 1000  | None
+        data['camera']      = 'c310'    # c310  | None
+        data['control']     = 'ps4'     # ps4   | None
         
-        data['annotation'] = ""
-        data['comments'] = ""
+        data['annotation']  = ""
+        data['comments']    = ""
 
 
 
