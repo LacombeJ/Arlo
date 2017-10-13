@@ -24,7 +24,7 @@ class ConsoleProject(object):
         
         self._playback_modules = (
             EntryPlayback,
-            ModuleCameraCv,
+            #ModuleCameraCv,
             ModuleVideoSync
         )
         
@@ -98,8 +98,8 @@ def ModuleCameraCv():
 def ModuleVideoSync():
     mod_a = module.ModuleVideoSyncCv(pos=(800,64))
     mod_b = module.ModuleAl5dplaybackSync()
-    #sync = module.SingleSyncModule(mod_a)
-    sync = module.DoubleSyncModule(mod_a,mod_b)
+    sync = module.SingleSyncModule(mod_a)
+    #sync = module.DoubleSyncModule(mod_a,mod_b)
     return sync
     
         
