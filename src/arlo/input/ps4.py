@@ -217,8 +217,3 @@ class PS4Controller(object):
     def down(self): return 1 if self._dpad[DX] == -1 else 0
     def right(self): return 1 if self._dpad[DY] == 1 else 0
     def left(self): return 1 if self._dpad[DX] == -1 else 0
-    
-
-
-
-
