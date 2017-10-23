@@ -250,12 +250,13 @@ class VAEGAN(network.Network):
         return (float(loss_enc.data), float(loss_gen.data),
             float(loss_dis.data), float(loss_reconstruction.data), .0)
     
-    def read_images(indices): # read_images
+    # dummy for now
+    def read_images(self, indices): # read_images
         # ignoring code to train LSTM...
         images = []
         for i in indices:
-            image = Image.open(image_files[i]) # from read_rnn_data, will crash w/0 it
-            image = image.resize((_image_size, _image_size), Image.ANTIALIAS)
+            image = Image.open(self.image_files[i]) # TODO: once again, how to deal with the read data
+            image = image.resize((self._image_size, self._image_size), Image.ANTIALIAS)
             image = image.convert('RGB')
             image = np.array(image)
             image = image.transpose((2, 0, 1))
@@ -264,7 +265,7 @@ class VAEGAN(network.Network):
         return images
 
     # dummy for now
-    def read_rnn_data(indicies)
+    def read_rnn_data(self, indicies)
         batch_in = []
         batch_out = []
         for i in indicies:
@@ -272,23 +273,19 @@ class VAEGAN(network.Network):
             # arbitrarily used the names from train.py for now
             # This will 100% crash the code if run
             # see line 175
-            seq_in = data_in[i: i+seq_length]
-            seq_out = data_out[i: i+seq_length]
+            seq_in = self.data_in[i: i+self.seq_length]
+            seq_out = self.data_out[i: i+self.seq_length]
             batch_in.append(seq_in)
             batch_out.append(seq_out)
         batch_in = np.array(batch_in).swapaxes(0, 1)
         batch_out = np.array(batch_out).swapaxes(0, 1)
     return (batch_in, batch_out)
 
-    # dummy for now
-    def convert():
-        return blah
-
-    def load_batch(i): # load_next_batch
+    def load_batch(self, i): # load_next_batch
         global next_batch
         global loading_next_batch
 
-        next_batch = np.asarray(read_images(train_indicies[i: i+batch_size/seq_length])).astype(np.float32)
+        next_batch = np.asarray(read_images(train_indicies[i: i+self.batch_size/self.seq_length])).astype(np.float32)
         next_batch = (next_batch / 127.5) - 1
         loading_next_batch = False
 
