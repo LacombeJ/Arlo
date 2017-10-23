@@ -265,7 +265,7 @@ class VAEGAN(network.Network):
         return images
 
     # dummy for now
-    def read_rnn_data(self, indicies)
+    def read_rnn_data(self, indicies):
         batch_in = []
         batch_out = []
         for i in indicies:
@@ -279,7 +279,7 @@ class VAEGAN(network.Network):
             batch_out.append(seq_out)
         batch_in = np.array(batch_in).swapaxes(0, 1)
         batch_out = np.array(batch_out).swapaxes(0, 1)
-    return (batch_in, batch_out)
+        return (batch_in, batch_out)
 
     def load_batch(self, i): # load_next_batch
         global next_batch
