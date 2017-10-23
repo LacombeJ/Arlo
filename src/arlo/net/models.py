@@ -259,7 +259,7 @@ class Generator48(chainer.Chain):
         )
         self.latent_size = latent_size
 
-    def __call__(self, (z, y), train=True):
+    def __call__(self, (z, y), train=True ):
         with chainer.using_config('train', train):
             h1 = F.reshape(F.relu(self.norm1(self.g1(z))), (z.data.shape[0], 128, 6, 6))
             h2 = F.relu(self.norm2(self.g2(h1)))
@@ -286,8 +286,3 @@ class Discriminator48(chainer.Chain):
             h2 = F.leaky_relu(self.norm2(self.dc2(h1)))
             h3 = F.leaky_relu(self.norm3(self.dc3(h2)))
             return self.dc4(h3)
-
-
-
-
-

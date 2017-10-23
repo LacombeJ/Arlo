@@ -8,6 +8,8 @@ import chainer
 import chainer.functions as F
 import chainer.links as L
 from chainer import cuda, Variable, optimizers, serializers
+# where is my image import? VVV
+from PIL import Image
 
 # TODO jonathan comment sections
 # TODO jonathan add logger support
@@ -17,9 +19,11 @@ from chainer import cuda, Variable, optimizers, serializers
 # VAE-GAN Network TODO this is based on train.py with 'GAN' ? What does this mean ? (GAN is a generative network)
 class VAEGAN(network.Network):
 
+    batch_size = 100  # if you use something else, let me know, but batch size needs to be somewhere
 
     # Initializes the network
     # size image size, one of [48, 64, 80, 96, 112, 128]
+    # I believe we should stick with 128
     def __init__(self, size=128):
         self._image_size = size
 
@@ -32,6 +36,7 @@ class VAEGAN(network.Network):
         self._gpus_to_use = [0]
         # You can use multiple GPUs by putting their indices in an array.
         # For instance: [0,1,2,3] for four GPUs
+        # Should keep this set to zero, since we only have 1, right?
         self._num_gpus = len(self._gpus_to_use)
         self._main_gpu = self._gpus_to_use[0]
         self._max_seq_length = 5
@@ -44,7 +49,7 @@ class VAEGAN(network.Network):
         self._normer = self._image_size * self._image_size * 3 * 60
 
         signal.signal(signal.SIGINT, self._signal_handler)
-        # TODO why is this here is it needed?
+        # needed to signal for signal handler, limits time
 
 
     # Initializes the model for this network
@@ -84,9 +89,9 @@ class VAEGAN(network.Network):
         self._optimizer_rnn.setup(self._rnn_model)
         self._optimizer_rnn.add_hook(chainer.optimizer.WeightDecay(0.00001))
 
-        self._enc_model.to_gpu(self._gpus_to_use)
-        self._gen_model.to_gpu(self._gpus_to_use)
-        self._dis_model.to_gpu(self._gpus_to_use)
+        self._enc_model.to_gpu(self._gpus_to_use[0])  # send to main GPU
+        self._gen_model.to_gpu(self._gpus_to_use[0])
+        self._dis_model.to_gpu(self._gpus_to_use[0])
 
     # Loads model weights into this network from the given path
     def load(self, path):
@@ -95,22 +100,35 @@ class VAEGAN(network.Network):
         serializers.load_hdf5(path + 'gen.model', self._gen_model)
         serializers.load_hdf5(path + 'gen.state', self._optimizer_gen)
 
+        # this is for BAEGAN VVV
         serializers.load_hdf5(path + 'dis.model', self._dis_model)
         serializers.load_hdf5(path + 'dis.state', self._optimizer_dis)
         serializers.load_hdf5(path + 'rnn.model', self._rnn_model)
         serializers.load_hdf5(path + 'rnn.state', self._optimizer_rnn)
 
+        # needed??
+        # serializers.load_hdf5(path + 'dis.model', self.dis_model[0])
+        # serializers.load_hdf5(path + 'dis.state', self._optimizer_dis)
+
+        # LSTM
+        # serializers.load_hdf5(path + 'rnn.model', self._rnn_model)
+        # serializers.load_hdf5(path + 'rnn.state', self._optimizer_rnn)
+
     # Saves model weights from this network to the given path
     def save(self, path):
-        serializers.save_hdf5(path + 'enc.model', self._enc_model)
+
+        # needs to follow the save interval as well!
+
+        serializers.save_hdf5(path + 'enc.model', self._enc_model) # enc[0]
         serializers.save_hdf5(path + 'enc.state', self._optimizer_enc)
-        serializers.save_hdf5(path + 'gen.model', self._gen_model)
+        serializers.save_hdf5(path + 'gen.model', self._gen_model) # gen[0]
         serializers.save_hdf5(path + 'gen.state', self._optimizer_gen)
 
-        serializers.save_hdf5(path + 'dis.model', self._dis_model)
-        serializers.save_hdf5(path + 'dis.state', self._optimizer_dis)
-        serializers.save_hdf5(path + 'rnn.model', self._rnn_model)
-        serializers.save_hdf5(path + 'rnn.state', self._optimizer_rnn)
+        # For BAEGAN VVV
+        serializers.save_hdf5(path + 'dis.model', self._dis_model) # enc_dis_model
+        serializers.save_hdf5(path + 'dis.state', self._optimizer_dis) # optimizer_enc_dis
+        serializers.save_hdf5(path + 'rnn.model', self._rnn_model) # gen_dis_model
+        serializers.save_hdf5(path + 'rnn.state', self._optimizer_rnn) #optimizer_gen_dis
 
 
     # Trains this network given inputs (img_batch, rnn_in, rnn_out)
@@ -151,6 +169,7 @@ class VAEGAN(network.Network):
 
                 cpconcat = Variable(cp.asnumpy(concat.data))
                 # TODO why was this needed? cupy vs numpy
+                # they do a lot of the same stuff...
 
                 rnn_loss += self._rnn_model(cpconcat, rnn_out[i])
 
@@ -230,6 +249,48 @@ class VAEGAN(network.Network):
 
         return (float(loss_enc.data), float(loss_gen.data),
             float(loss_dis.data), float(loss_reconstruction.data), .0)
+    
+    def read_images(indices): # read_images
+        # ignoring code to train LSTM...
+        images = []
+        for i in indices:
+            image = Image.open(image_files[i]) # from read_rnn_data, will crash w/0 it
+            image = image.resize((_image_size, _image_size), Image.ANTIALIAS)
+            image = image.convert('RGB')
+            image = np.array(image)
+            image = image.transpose((2, 0, 1))
+            image = image[:, :, ::-1].copy()
+            images.append(image)
+        return images
+
+    # dummy for now
+    def read_rnn_data(indicies)
+        batch_in = []
+        batch_out = []
+        for i in indicies:
+            # TODO: how did you want to deal with reading the data?
+            # arbitrarily used the names from train.py for now
+            # This will 100% crash the code if run
+            # see line 175
+            seq_in = data_in[i: i+seq_length]
+            seq_out = data_out[i: i+seq_length]
+            batch_in.append(seq_in)
+            batch_out.append(seq_out)
+        batch_in = np.array(batch_in).swapaxes(0, 1)
+        batch_out = np.array(batch_out).swapaxes(0, 1)
+    return (batch_in, batch_out)
+
+    # dummy for now
+    def convert():
+        return blah
+
+    def load_batch(i): # load_next_batch
+        global next_batch
+        global loading_next_batch
+
+        next_batch = np.asarray(read_images(train_indicies[i: i+batch_size/seq_length])).astype(np.float32)
+        next_batch = (next_batch / 127.5) - 1
+        loading_next_batch = False
 
     # System exit signal handler
     def _signal_handler(self, signal, frame):

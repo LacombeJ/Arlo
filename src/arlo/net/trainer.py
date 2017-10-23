@@ -1,4 +1,3 @@
-
 import numpy as np
 
 # This class trains a neural network by calling its partial_fit function
