@@ -1,17 +1,9 @@
 
-'''
-data_config.py
-
-This module contains private utility functions to handle reading and writing configuration file
-
-'''
-
-
+# data_config.py
+# This module contains private utility functions to handle reading and writing configuration file
 import arlo.utils.config as au_config
 import arlo.utils.term as term
 import arlo.utils.ext as ext
-
-
 
 
 # ===============================================================================

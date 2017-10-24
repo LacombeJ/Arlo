@@ -1,17 +1,13 @@
-
 #include "RobotArm.h"
-
-//TODO jonathan remove unused imports
-#include <iostream>
+#include <iostream> //TODO jonathan remove unused imports
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
-#include <termios.h>    // POSIX terminal control definitions
+#include <termios.h> // POSIX terminal control definitions
 #include <math.h>
 #include <cstdio>
 #include <cstring>
 #include <vector>
-
 
 
 const int RobotArm::ranges[RobotArm::num_servos][RANGE_SIZE] = {
@@ -27,7 +23,7 @@ const int RobotArm::ranges[RobotArm::num_servos][RANGE_SIZE] = {
 
 
 RobotArm::RobotArm() :
-    position {     // "center" position for each servo
+    position { // "center" position for each servo
         1500,
         1500,
         1250,
@@ -35,7 +31,7 @@ RobotArm::RobotArm() :
         1350,
         1600
     },
-    end {'T', '8', '0', '0', '\r', '\0'},     // (was 200) 800 ms to complete whole move
+    end {'T', '8', '0', '0', '\r', '\0'}, // (was 200) 800 ms to complete whole move
     outfile(0)
 {
     memset(cmd, 0, bufsize);
@@ -59,7 +55,7 @@ void RobotArm::create()
 {
     int i, * tmp = get_pos();
     for(i = 0; i < num_servos; i++)
-        new_pos[i] = tmp[i];        // fill new position by current one
+        new_pos[i] = tmp[i]; // fill new position by current one
 
     if(init())
     {
@@ -312,19 +308,3 @@ void RobotArm::commandRobotUsingIK(
 
     move(new_pos);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
