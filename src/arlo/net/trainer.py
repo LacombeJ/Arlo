@@ -24,11 +24,15 @@ class Trainer(object):
     def addInterval(self, func, interval):
         self._intervals.append((func, interval))
 
-    def train(self, x):
+    # func input(i,j) returns batch input to send to network
+    def train(self, batch):
 
         for i in range(self._epochs):
 
             for j in range(self._batches):
+            
+                x = batch(i,j)
+            
                 train_result = self._net.train(x)
 
                 for (func, interval) in self._intervals:

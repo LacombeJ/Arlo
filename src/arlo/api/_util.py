@@ -4,12 +4,15 @@ import project
 import arlo.utils.config as config
 import arlo.utils.ext as ext
 import arlo.utils.term as term
-import cv2
 
+import cv2
+import numpy as np
 
 def _default_translate(path, otype, value):
     if otype == 'video_cap':
         return cv2.VideoCapture(path+value)
+    if otype == 'video_numpy':
+        return readVideo(path+value)
     if otype == 'json_data':
         return config.read(path+value).get('data')
     if otype == 'datetime':
@@ -214,3 +217,27 @@ def playback(proj, modules, index=-1, require=True):
         module.finish()
 
     log.debug('Playback finished.')
+    
+    
+
+
+def readVideo(path):
+
+    video = []
+
+    cap = cv2.VideoCapture(path)
+
+    while True:
+    
+        ret, frame = cap.read()
+        
+        if ret == False:
+            break
+            
+        video.append(frame)
+
+    return np.array(video)
+
+
+
+

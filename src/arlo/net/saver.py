@@ -50,6 +50,9 @@ class Saver(object):
                 print "Error loading saver: Wrong label"
                 self._node = None
 
+    def save(self, func):
+        func(self._node.path())
+
 
 # This class saves and loads neural network weights
 class NetworkSaver(Saver):
@@ -83,17 +86,19 @@ class NetworkSaver(Saver):
 
         directories = self._node.get(DIRECTORIES)
 
-        last_directory = directories[-1]
+        if len(directories) > 0:
 
-        sub, new = self._node.load('{}'.format(last_directory))
-        sub_path = sub.path()
+            last_directory = directories[-1]
 
-        if new:
-            print "Load failed, network model does not exist."
-            sub.unsafe_erase()
-            return
+            sub, new = self._node.load('{}'.format(last_directory))
+            sub_path = sub.path()
 
-        self._net.load(sub_path)
+            if new:
+                print "Load failed, network model does not exist."
+                sub.unsafe_erase()
+                return
+
+            self._net.load(sub_path)
 
 
 def translate(path, otype, value):
@@ -102,3 +107,5 @@ def translate(path, otype, value):
     if otype == 'datetime':
         return ext.unpack_datetime(value)
     return None
+    
+
