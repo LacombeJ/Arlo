@@ -22,7 +22,7 @@ class VaeganTrainer(object):
         self._net = vaegan.VAEGAN()
 
         self._epoch = 50
-        self._batch = 50
+        self._batch = 10
         self._batch_size = 20
         self._image_dim = (5,4)
 
@@ -99,7 +99,7 @@ class VaeganTrainer(object):
         batch_size = self._trainer.batches()
 
         sys.stdout.write('\r'
-                         'errors: {0:0.4f} {1:0.4f} {2:0.8f} {3:0.4f}'
+                         'Batch: ' + str(batch+1) + ' / ' + str(self._batch) + ' -  errors: {0:0.4f} {1:0.4f} {2:0.8f} {3:0.4f}'
                          .format(loss_enc, loss_gen, loss_dis,loss_rec))
         sys.stdout.flush()
         
