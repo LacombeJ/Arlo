@@ -27,6 +27,8 @@ class Trainer(object):
     # func input(i,j) returns batch input to send to network
     def train(self, batch):
 
+        index = 0
+
         for i in range(self._epochs):
 
             for j in range(self._batches):
@@ -37,5 +39,7 @@ class Trainer(object):
 
                 for (func, interval) in self._intervals:
 
-                    if j % interval == 0:
+                    if index % interval == 0:
                         func(i, j, train_result)
+                        
+                index += 1

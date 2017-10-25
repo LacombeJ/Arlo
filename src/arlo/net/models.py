@@ -12,38 +12,6 @@ from chainer.initializers import Normal
 # https://github.com/rrahmati/roboinstruct-2
 
 
-# Mixture Density Network model
-class MDN_RNN(chainer.Chain):
-
-    def __init__(self, IN_DIM, HIDDEN_DIM, OUT_DIM, NUM_MIXTURE):
-        self.IN_DIM = IN_DIM
-        self.HIDDEN_DIM = HIDDEN_DIM
-        self.OUT_DIM = OUT_DIM
-        self.NUM_MIXTURE = NUM_MIXTURE
-        print IN_DIM, HIDDEN_DIM, OUT_DIM, NUM_MIXTURE
-        super(MDN_RNN, self).__init__(
-            l1_ = L.LSTM(IN_DIM, HIDDEN_DIM),
-            mixing_ = L.Linear(HIDDEN_DIM, NUM_MIXTURE),
-            mu_ = L.Linear(HIDDEN_DIM, NUM_MIXTURE*OUT_DIM),
-            sigma_ = L.Linear(HIDDEN_DIM, NUM_MIXTURE)
-        )
-
-    def __call__(self, x, y):
-        h = self.l1_(x)
-
-        sigma = F.softplus(self.sigma_(h))
-        mixing = F.softmax(self.mixing_(h))
-        mu = F.reshape(self.mu_(h), (-1, self.OUT_DIM, self.NUM_MIXTURE))
-        mu, y = F.broadcast(mu, F.reshape(y, (-1, self.OUT_DIM, 1)))
-        exponent = -0.5 * (1. / sigma) * F.sum((y - mu) ** 2, axis=1)
-        normalizer = 2 * np.pi * sigma
-        exponent = exponent + F.log(mixing) - (self.OUT_DIM * .5) * F.log(normalizer)
-        cost = -F.logsumexp(exponent)
-        return cost
-
-    def reset_state(self):
-        self.l1_.reset_state()
-
 
 class Encoder(chainer.Chain):
     def __init__(self, density=1, size=64, latent_size=100, channel=3):
@@ -82,6 +50,7 @@ class Encoder(chainer.Chain):
             return z, mean, var
 
 
+
 class Generator(chainer.Chain):
     def __init__(self, density=1, size=64, latent_size=100, channel=3):
         assert (size % 16 == 0)
@@ -116,105 +85,6 @@ class Generator(chainer.Chain):
             return F.tanh(self.g5(h4))
 
 
-class EncoderDeep(chainer.Chain):
-    def __init__(self, density=1, size=64, latent_size=100, channel=3):
-        assert (size % 16 == 0)
-        initial_size = size / 16
-        super(EncoderDeep, self).__init__(
-            dc1=L.Convolution2D(channel, 16 * density, 4, stride=2, pad=1,
-                                initialW=Normal(0.02)),
-            dc2=L.Convolution2D(16 * density, 32 * density, 4, stride=2, pad=1,
-                                initialW=Normal(0.02)),
-            norm2=L.BatchNormalization(32 * density),
-            dc3=L.Convolution2D(32 * density, 64 * density, 4, stride=2, pad=1,
-                                initialW=Normal(0.02)),
-            norm3=L.BatchNormalization(64 * density),
-            dc4=L.Convolution2D(64 * density, 128 * density, 4, stride=2, pad=1,
-                                initialW=Normal(0.02)),
-            norm4=L.BatchNormalization(128 * density),
-
-            dc1_=L.Convolution2D(16 * density, 16 * density, 3, stride=1, pad=1,
-                                 initialW=Normal(0.02)),
-            dc2_=L.Convolution2D(32 * density, 32 * density, 3, stride=1, pad=1,
-                                 initialW=Normal(0.02)),
-            norm2_=L.BatchNormalization(32 * density),
-            dc3_=L.Convolution2D(64 * density, 64 * density, 3, stride=1, pad=1,
-                                 initialW=Normal(0.02)),
-            norm3_=L.BatchNormalization(64 * density),
-            dc4_=L.Convolution2D(128 * density, 128 * density, 3, stride=1, pad=1,
-                                 initialW=Normal(0.02)),
-            norm4_=L.BatchNormalization(128 * density),
-
-            mean=L.Linear(initial_size * initial_size * 128 * density, latent_size,
-                          initialW=Normal(0.02)),
-            var=L.Linear(initial_size * initial_size * 128 * density, latent_size,
-                         initialW=Normal(0.02)),
-        )
-
-    def __call__(self, x, train=True):
-        with chainer.using_config('train', train):
-            xp = cuda.get_array_module(x.data)
-            h1 = F.leaky_relu(self.dc1(x))
-            h1_ = F.leaky_relu(self.dc1_(h1))
-            h2 = F.leaky_relu(self.norm2(self.dc2(h1_)))
-            h2_ = F.leaky_relu(self.norm2_(self.dc2_(h2)))
-            h3 = F.leaky_relu(self.norm3(self.dc3(h2_)))
-            h3_ = F.leaky_relu(self.norm3_(self.dc3_(h3)))
-            h4 = F.leaky_relu(self.norm4_(self.dc4(h3_)))
-            h4_ = F.leaky_relu(self.norm4_(self.dc4_(h4)))
-            mean = self.mean(h4_)
-            var = self.var(h4_)
-            rand = xp.random.normal(0, 1, var.data.shape).astype(np.float32)
-            z = mean + F.exp(var) * Variable(rand, volatile=not train)
-            return (z, mean, var)
-
-
-class GeneratorDeep(chainer.Chain):
-    def __init__(self, density=1, size=64, latent_size=100, channel=3):
-        assert (size % 16 == 0)
-        initial_size = size / 16
-        super(GeneratorDeep, self).__init__(
-            g1=L.Linear(latent_size, initial_size * initial_size * 128 * density, initialW=Normal(0.02)),
-            norm1=L.BatchNormalization(initial_size * initial_size * 128 * density),
-            g2=L.Deconvolution2D(128 * density, 64 * density, 4, stride=2, pad=1,
-                                 initialW=Normal(0.02)),
-            norm2=L.BatchNormalization(64 * density),
-            g3=L.Deconvolution2D(64 * density, 32 * density, 4, stride=2, pad=1,
-                                 initialW=Normal(0.02)),
-            norm3=L.BatchNormalization(32 * density),
-            g4=L.Deconvolution2D(32 * density, 16 * density, 4, stride=2, pad=1,
-                                 initialW=Normal(0.02)),
-            norm4=L.BatchNormalization(16 * density),
-            g5=L.Deconvolution2D(16 * density, channel, 4, stride=2, pad=1,
-                                 initialW=Normal(0.02)),
-
-            g2_=L.Deconvolution2D(64 * density, 64 * density, 3, stride=1, pad=1,
-                                  initialW=Normal(0.02)),
-            norm2_=L.BatchNormalization(64 * density),
-            g3_=L.Deconvolution2D(32 * density, 32 * density, 3, stride=1, pad=1,
-                                  initialW=Normal(0.02)),
-            norm3_=L.BatchNormalization(32 * density),
-            g4_=L.Deconvolution2D(16 * density, 16 * density, 3, stride=1, pad=1,
-                                  initialW=Normal(0.02)),
-            norm4_=L.BatchNormalization(16 * density),
-            g5_=L.Deconvolution2D(channel, channel, 3, stride=1, pad=1, initialW=Normal(0.02)),
-        )
-        self.density = density
-        self.latent_size = latent_size
-        self.initial_size = initial_size
-
-    def __call__(self, z, train=True):
-        with chainer.using_config('train', train):
-            h1 = F.reshape(F.relu(self.norm1(self.g1(z), test=not train)),
-                           (z.data.shape[0], 128 * self.density, self.initial_size, self.initial_size))
-            h2 = F.relu(self.norm2(self.g2(h1)))
-            h2_ = F.relu(self.norm2_(self.g2_(h2)))
-            h3 = F.relu(self.norm3(self.g3(h2_)))
-            h3_ = F.relu(self.norm3_(self.g3_(h3)))
-            h4 = F.relu(self.norm4(self.g4(h3_)))
-            h4_ = F.relu(self.norm4_(self.g4_(h4)))
-            return F.tanh(self.g5(h4_))
-
 
 class Discriminator(chainer.Chain):
     def __init__(self, density=1, size=64, channel=3):
@@ -245,44 +115,3 @@ class Discriminator(chainer.Chain):
             return self.dc5(h4), h3
 
 
-class Generator48(chainer.Chain):
-    def __init__(self):
-        latent_size = 100
-        super(Generator48, self).__init__(
-            g1=L.Linear(latent_size * 2, 6 * 6 * 128, initialW=Normal(0.02)),
-            norm1=L.BatchNormalization(6 * 6 * 128),
-            g2=L.Deconvolution2D(128, 64, 4, stride=2, pad=1, initialW=Normal(0.02)),
-            norm2=L.BatchNormalization(64),
-            g3=L.Deconvolution2D(64, 32, 4, stride=2, pad=1, initialW=Normal(0.02)),
-            norm3=L.BatchNormalization(32),
-            g4=L.Deconvolution2D(32, 1, 4, stride=2, pad=1, initialW=Normal(0.02)),
-        )
-        self.latent_size = latent_size
-
-    def __call__(self, (z, y), train=True ):
-        with chainer.using_config('train', train):
-            h1 = F.reshape(F.relu(self.norm1(self.g1(z))), (z.data.shape[0], 128, 6, 6))
-            h2 = F.relu(self.norm2(self.g2(h1)))
-            h3 = F.relu(self.norm3(self.g3(h2)))
-            h4 = F.sigmoid(self.g4(h3))
-            return h4
-
-
-class Discriminator48(chainer.Chain):
-    def __init__(self):
-        super(Discriminator48, self).__init__(
-            dc1=L.Convolution2D(1, 32, 4, stride=2, pad=1, initialW=Normal(0.02)),
-            norm1=L.BatchNormalization(32),
-            dc2=L.Convolution2D(32, 64, 4, stride=2, pad=1, initialW=Normal(0.02)),
-            norm2=L.BatchNormalization(64),
-            dc3=L.Convolution2D(64, 128, 4, stride=2, pad=1, initialW=Normal(0.02)),
-            norm3=L.BatchNormalization(128),
-            dc4=L.Linear(6 * 6 * 128, 2, initialW=Normal(0.02)),
-        )
-
-    def __call__(self, x, train=True):
-        with chainer.using_config('train', train):
-            h1 = F.leaky_relu(self.norm1(self.dc1(x)))
-            h2 = F.leaky_relu(self.norm2(self.dc2(h1)))
-            h3 = F.leaky_relu(self.norm3(self.dc3(h2)))
-            return self.dc4(h3)

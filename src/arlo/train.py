@@ -21,27 +21,28 @@ class VaeganTrainer(object):
         
         self._net = vaegan.VAEGAN()
 
-        self._epoch = 50
-        self._batch = 10
+        self._epoch = 100
+        self._save_epoch = 10
+        self._batch = 50
         self._batch_size = 20
-        self._image_dim = (5,4)
 
         self._trainer = trainer.Trainer(self._net, seed=1241, epochs=self._epoch,
                                         batches=self._batch)
-        self._trainer.addInterval(self._save_interval, self._batch)
+        
+        self._trainer.addInterval(self._save_interval, self._batch*self._save_epoch)
+        
         self._trainer.addInterval(self._image_interval, self._batch)
         self._trainer.addInterval(self._epoch_interval, self._batch)
         self._trainer.addInterval(self._batch_interval, 1)
+        
 
         self._network_saver = saver.NetworkSaver('vaegan/models/',
                                                  net=self._net)
         self._image_saver = saver.Saver('vaegan/images/')
 
         self._network_saver.load()
-        
 
-    def batch_func(self,i,j):
-    
+    def random_batch(self,size):
         entry_count = self._project.entryCount()
         random_index = int(random.random()*entry_count)
         entry = self._project.entry(random_index)
@@ -49,7 +50,7 @@ class VaeganTrainer(object):
         
         # Get random sample from shuffled video images
         np.random.shuffle(video)
-        sample = video[:self._batch_size]
+        sample = video[:size]
         
         # Resize
         data = []
@@ -62,31 +63,53 @@ class VaeganTrainer(object):
         data = data.swapaxes(1,3)
         data = data.swapaxes(2,3)
         
-        
         return data
+
+    def batch_func(self,i,j):
+        return self.random_batch(self._batch_size)
+
+    def saveAll(self):
+        # Save Images
+        def image_save(path,data):
+            file_name = 'image.png'
+            file_path = path + file_name
+            
+            img_batch = self.random_batch(5)
+            image = self._net.image(img_batch)
+            Image.fromarray(image).save(file_path)
+            
+            data['image_file'] = file_name
+        
+        # Save Network
+        self._network_saver.save(image_save)
 
     # Train method
     def train(self):
+        
+        # Train
+        
         self._trainer.train(self.batch_func)
-        pass
+        
+        
+        # Save after training is completed
+        self.saveAll()
 
     # Called when network model should save
     def _save_interval(self, epoch, batch, result):
-        # self._network_saver.save()
-        pass
+        self.saveAll()
 
     # Called when image should save
     def _image_interval(self, epoch, batch, result):
         
-        data = self.batch_func(0,0)
+        data = self.random_batch(5)
         
-        image = self._net.image(data, self._image_dim)
+        image = self._net.image(data)
         
         def save_image(path):
             Image.fromarray(image).save(
-                path + '{0:03d}_{1:07d}.png'.format(epoch, batch))
+                path + '{0:03d}.png'.format(epoch))
 
-        self._image_saver.save(save_image)
+        #self._image_saver.save(save_image)
 
     # Called every epoch
     def _epoch_interval(self, epoch, batch, result):

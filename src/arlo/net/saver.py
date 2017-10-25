@@ -65,17 +65,23 @@ class NetworkSaver(Saver):
         self._net = net
         self._single = single
 
-    def save(self):
+    def save(self,save_func=None):
 
         increment = self._node.get(INCREMENT)
         directories = self._node.get(DIRECTORIES)
 
-        sub, new = self._node.load('{}{}'.format(project.SUB, increment))
+        sub, new = self._node.load('{}{}'.format(SUB_NETWORK, increment))
         sub_path = sub.path()
-
+        sub_data = {}
+        
         self._net.save(sub_path)
-
-        if not self.single or new:
+        
+        if save_func is not None:
+            save_func(sub_path,sub_data)
+            self._node.setValues(sub_data)
+            self._node.save()
+        
+        if not self._single or new:
             increment += 1
             directories.append(sub.relative_path())
             self._node.set(INCREMENT, increment)

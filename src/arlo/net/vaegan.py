@@ -228,9 +228,9 @@ class VAEGAN(network.Network):
         sys.exit(0)
 
     # Returns encoded image from the image batch ? TODO
-    def image(self, image_batch, dim):
+    def image(self, image_batch):
         
-        row, col = dim
+        dim = len(image_batch)
         
         with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
 
@@ -238,15 +238,18 @@ class VAEGAN(network.Network):
             z, m, v = self._enc_model(Variable(cuda.to_gpu(image_batch, self._gpu)), train=False)
             z = m
             data = self._gen_model(z, train=False).data
-            test_rec_loss = F.squared_difference(data, cp.asarray(image_batch))
-            test_rec_loss = float(F.sum(test_rec_loss).data) / (self._normer)
 
-            image = ((cuda.to_cpu(data) + 1) * 128).clip(0, 255).astype(np.uint8)
-            image = image[:row*col]
-
-            image = image.reshape((row, col, 3, self._image_size, self._image_size))
+            reconstructed_images = ((cuda.to_cpu(data) + 1) * 128).clip(0, 255).astype(np.uint8)
+            reconstructed_images = reconstructed_images[:dim]
+            
+            original_images = ((image_batch+1)*128).clip(0,255).astype(np.uint8)
+            image = np.concatenate((original_images,reconstructed_images))
+            
+            # The row=2 in reshape represents the original and reconstruct coupled images
+            row = 2
+            image = image.reshape((row, dim, 3, self._image_size, self._image_size))
             image = image.transpose((0, 3, 1, 4, 2))
-            image = image.reshape((row * self._image_size, col * self._image_size, 3))
+            image = image.reshape((row * self._image_size, dim * self._image_size, 3))
 
             return image
             
