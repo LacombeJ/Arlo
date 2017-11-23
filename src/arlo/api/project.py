@@ -51,6 +51,9 @@ class ProjectNode(object):
 
     def relative_path(self):
         return self._node.path()
+        
+    def fileExists(self, fname):
+        return self._node.fileExists(fname)
 
     def name(self):
         return self._name
@@ -64,16 +67,19 @@ class ProjectNode(object):
     def save(self):
         self._node.save()
 
-
+#TODO jonathan rename functions / refactor code
 class Project(ProjectNode):
 
     # ----------------------------------------------- #
 
     def __init__(self, root):
         ProjectNode.__init__(self, self, root)
-        self._data_dir = self._node.get('data_directories')
-        self._entry_count = len(self._data_dir)
+        self._refresh()
         self._logger = log.Logger()
+
+    def _refresh(self):
+        self._data_dir = self._node.get(DIRECTORIES)
+        self._entry_count = len(self._data_dir)
 
     # ----------------------------------------------- #
 
@@ -88,7 +94,15 @@ class Project(ProjectNode):
             return None
         return Entry(self, sub)
 
-    def entries(self, vfunc):
+    def getEntry(self, name):
+        sub, new = self._node.load(name)
+        if new:
+            sub.unsafe_erase()
+            return None
+        return Entry(self, sub)
+
+    # def func(entry)
+    def entries(self, func):
         for i in range(self._entry_count):
             e = self.entry(i)
             func(e)
@@ -102,6 +116,16 @@ class Project(ProjectNode):
             elif filter_func(e):
                 entries.append(e)
         return entries
+
+    def deleteEntryAt(self, index):
+        E = self.entry(index)
+        if E is not None:
+            E.delete()
+
+    def deleteEntry(self, name):
+        E = self.getEntry(name)
+        if E is not None:
+            E.delete()
 
     def getLogger(self):
         return self._logger
@@ -124,3 +148,13 @@ class Entry(ProjectNode):
 
     def __init__(self, project, sub):
         ProjectNode.__init__(self, project, sub)
+        
+    def delete(self):
+        self._node.delete()
+        directories = self._project._node.get(DIRECTORIES)
+        directories.remove(self.name()+'/')
+        self._project._node.set(DIRECTORIES, directories)
+        self._project._node.save()
+        self._project._refresh()
+        
+

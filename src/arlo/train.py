@@ -85,14 +85,9 @@ class VaeganTrainer(object):
 
     # Train method
     def train(self):
-        
         # Train
-        
         self._trainer.train(self.batch_func)
         
-        
-        # Save after training is completed
-        self.saveAll()
 
     # Called when network model should save
     def _save_interval(self, epoch, batch, result):

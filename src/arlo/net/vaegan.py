@@ -245,6 +245,10 @@ class VAEGAN(network.Network):
             original_images = ((image_batch+1)*128).clip(0,255).astype(np.uint8)
             image = np.concatenate((original_images,reconstructed_images))
             
+            # Image shape = ( N, 3, _image_size, _image_size)
+            # To switch from BGR to RGB color channel:
+            image = image[ : , ::-1 , : , : ]
+            
             # The row=2 in reshape represents the original and reconstruct coupled images
             row = 2
             image = image.reshape((row, dim, 3, self._image_size, self._image_size))

@@ -67,9 +67,9 @@ class _Node(object):
     def save(self):
         config.write(self._config_path, self._config)
     
-    # Deletes meta data
+    # Trashes node
     def delete(self):
-        trash.delete(self._config_path)
+        trash.delete(self._node_path)
     
     # Directory must be empty
     def unsafe_erase(self):
@@ -86,6 +86,10 @@ class _Node(object):
             io.make_dir(self._node_path + name,False)
             return _Node(name,self._translate,False,self._node_path), True
         return _Node(name,self._translate,True,self._node_path), False
+        
+    # Returns whether a given file exists in this node directory
+    def fileExists(self, fname):
+        return io.dir_exists(self.path()+'/'+fname)
         
     # Returns the path relative to the parent node ('node_path/')
     def relative_path(self):

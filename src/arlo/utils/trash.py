@@ -19,8 +19,11 @@ def load_root():
 
 def delete(file_path):
 
-    file_dir, file_name = os.path.split(file_path)
+    if file_path[-1] == '/':
+        file_path = file_path[:-1]
 
+    file_dir, file_name = os.path.split(file_path)
+    
     if file_name == "":
         print 'Error: File path ends in "".'
         return
@@ -55,7 +58,7 @@ def delete(file_path):
 
     root.set('trash_items', trash_items)
     root.save()
-
+    
     os.rename(file_path, item_node.path() + file_name)
 
 

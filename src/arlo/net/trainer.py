@@ -37,9 +37,11 @@ class Trainer(object):
             
                 train_result = self._net.train(x)
 
+                index += 1
+
                 for (func, interval) in self._intervals:
 
                     if index % interval == 0:
                         func(i, j, train_result)
                         
-                index += 1
+                
