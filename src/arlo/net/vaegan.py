@@ -1,22 +1,21 @@
+
 import network
 import models
+
 import sys
 import signal
+
 import numpy as np
 import cupy as cp
+
 import chainer
 import chainer.functions as F
 import chainer.links as L
 from chainer import cuda, Variable, optimizers, serializers
-# where is my image import? VVV
-from PIL import Image
 
 # TODO jonathan comment sections
 # TODO jonathan add logger support
-# TODO jonathan shorten lines of code
-# TODO jonathan use 1 gpu for this
 
-# VAE-GAN Network TODO this is based on train.py with 'GAN' ? What does this mean ? (GAN is a generative network)
 class VAEGAN(network.Network):
 
     batch_size = 100  # if you use something else, let me know, but batch size needs to be somewhere
@@ -33,10 +32,6 @@ class VAEGAN(network.Network):
     # Initializes network parameters
     def _init_parameters(self):
         self._latent_size = 256
-        self._gpus_to_use = [0]
-        # You can use multiple GPUs by putting their indices in an array.
-        # For instance: [0,1,2,3] for four GPUs
-        # Should keep this set to zero, since we only have 1, right?
         self._gpu = 0
         
         self._train_dis = True
@@ -90,7 +85,6 @@ class VAEGAN(network.Network):
         serializers.load_hdf5(path + 'gen.model', self._gen_model)
         serializers.load_hdf5(path + 'gen.state', self._optimizer_gen)
 
-        # this is for BAEGAN VVV
         serializers.load_hdf5(path + 'dis.model', self._dis_model)
         serializers.load_hdf5(path + 'dis.state', self._optimizer_dis)
 
@@ -99,14 +93,13 @@ class VAEGAN(network.Network):
 
         # needs to follow the save interval as well!
 
-        serializers.save_hdf5(path + 'enc.model', self._enc_model) # enc[0]
+        serializers.save_hdf5(path + 'enc.model', self._enc_model)
         serializers.save_hdf5(path + 'enc.state', self._optimizer_enc)
-        serializers.save_hdf5(path + 'gen.model', self._gen_model) # gen[0]
+        serializers.save_hdf5(path + 'gen.model', self._gen_model)
         serializers.save_hdf5(path + 'gen.state', self._optimizer_gen)
 
-        # For BAEGAN VVV
-        serializers.save_hdf5(path + 'dis.model', self._dis_model) # enc_dis_model
-        serializers.save_hdf5(path + 'dis.state', self._optimizer_dis) # optimizer_enc_dis
+        serializers.save_hdf5(path + 'dis.model', self._dis_model)
+        serializers.save_hdf5(path + 'dis.state', self._optimizer_dis)
 
 
     # Trains this network given inputs (img_batch)
@@ -183,49 +176,30 @@ class VAEGAN(network.Network):
 
         return (float(loss_enc.data), float(loss_gen.data),
             float(loss_dis.data), float(loss_reconstruction.data))
-    
-    # dummy for now
-    def read_images(self, indices): # read_images
-        # ignoring code to train LSTM...
-        images = []
-        for i in indices:
-            image = Image.open(self.image_files[i]) # TODO: once again, how to deal with the read data
-            image = image.resize((self._image_size, self._image_size), Image.ANTIALIAS)
-            image = image.convert('RGB')
-            image = np.array(image)
-            image = image.transpose((2, 0, 1))
-            image = image[:, :, ::-1].copy()
-            images.append(image)
-        return images
-
-    # dummy for now
-    def read_rnn_data(self, indicies):
-        batch_in = []
-        batch_out = []
-        for i in indicies:
-            # TODO: how did you want to deal with reading the data?
-            # arbitrarily used the names from train.py for now
-            # This will 100% crash the code if run
-            # see line 175
-            seq_in = self.data_in[i: i+self.seq_length]
-            seq_out = self.data_out[i: i+self.seq_length]
-            batch_in.append(seq_in)
-            batch_out.append(seq_out)
-        batch_in = np.array(batch_in).swapaxes(0, 1)
-        batch_out = np.array(batch_out).swapaxes(0, 1)
-        return (batch_in, batch_out)
-
-    def load_batch(self, i): # load_next_batch
-        global next_batch
-        global loading_next_batch
-
-        next_batch = np.asarray(read_images(train_indicies[i: i+self.batch_size/self.seq_length])).astype(np.float32)
-        next_batch = (next_batch / 127.5) - 1
-        loading_next_batch = False
-
+            
     # System exit signal handler
     def _signal_handler(self, signal, frame):
         sys.exit(0)
+        
+    # Return latent size
+    def get_size(self):
+        return self._latent_size
+
+    # Encodes image batch
+    def encode(batch):
+        with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+            cuda.get_device(self._gpu).use()
+            x_in = xp.asarray(batch)
+            z, mean, var = self._enc_model(Variable(x_in), train=False)
+            return (cuda.to_cpu(z.data), cuda.to_cpu(mean.data), cuda.to_cpu(var.data))
+    
+    # Decodes z data into image batch
+    def decode(z):
+        with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+            cuda.get_device(self._gpu).use()
+            z_in = xp.asarray(z)
+            x = self._gen_model(Variable(z_in), train=False)
+            return ((cuda.to_cpu(x.data) + 1) * 128).clip(0, 255).astype(np.uint8)
 
     # Returns encoded image from the image batch ? TODO
     def image(self, image_batch):

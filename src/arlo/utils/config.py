@@ -35,6 +35,7 @@ def read(fname):
             data = json.load(read_file)
             return data
     except IOError, err:
+        print err
         return None
 
 

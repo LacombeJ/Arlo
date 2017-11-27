@@ -55,7 +55,13 @@ class VaeganTrainer(object):
         # Resize
         data = []
         for i in range(len(sample)):
-            data.append(cv2.resize(sample[i],(128,128)))
+            img = sample[i] #800 x 600 data
+            x = 75
+            y = 25
+            w = 400
+            h = 400
+            img = img[y:y+h, x:x+w]
+            data.append(cv2.resize(img,(128,128)))
         data = np.array(data, dtype='float32')
         data = data / 127.5 - 1;
         

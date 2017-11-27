@@ -70,6 +70,17 @@ class TimeStamper(object):
     def last_time_ms(self):
         return self._times[-1]
 
+# Return index of frame given the current time
+# time ms
+# frames array of ms differences (ex: [0, 1000, 2000, 3000...] (per sec))
+# Returns -1 if time is below lower bound or None if it is above
+def timeIndex(time, frames):
+    if time < frames[0]:
+        return -1
+    for i in range(len(frames)):
+        if time <= frames[i]:
+            return i
+    return None
 
 class TimeSync(object):
 
