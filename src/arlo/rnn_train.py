@@ -39,11 +39,12 @@ locals().update(config)
 def run():
 
     # Load Model
-    net_size = 128 #Hard-code instead of loading model (takes too long to set up network)
+    net_size = 256 #Hard-code instead of loading model (takes too long to set up network)
     #net = vaegan.VAEGAN()
     #network_saver = saver.NetworkSaver('vaegan/models/', net=net)
     #network_saver.load()
     
+    '''
     with h5py.File(hdf5_file) as f:
         print f
         print dir(f)
@@ -58,17 +59,7 @@ def run():
         print f.attrs.keys()
         print f.attrs.values()
         print "\n\n"
-    
-    # Config
-    cost_mode = 'RL-MDN'
-    input_columns = ['task_dice']
-    output_columns = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'gripper', 'steps_to_goal']
-    batch_size = 128  # number of samples taken per each update
-    nepochs = 5 #50000  # number of full passes through the training data
-    learning_rate = .005
-    learning_rate_decay = 0.5  # set to 0 to not decay learning rate
-    lr_decay_every_n_epochs = 100
-    
+    '''
     
     save_path = 'models/model_save.pkl' #TODO jonathan what is this?
     last_path = 'models/model_last.pkl' #TODO jonathan what is this?
@@ -87,13 +78,16 @@ def run():
     
     # More Config
     out_size = len(output_columns) - 1 # code_mode=RL-MDN
-    hidden_size = 100
     latent_size = net_size
     in_size = latent_size + len(input_columns)
-    layer_models = ['lstm','lstm','lstm']
-    num_recurrent_layers = len(layer_models)
     
-    
+    print "==============================="
+    print x, y
+    print input_columns
+    print latent_size, len(input_columns)
+    print in_size, out_size, hidden_size
+    print num_recurrent_layers
+    print train_flag
     # Network
     y_hat, cost, cells = nn_fprop(x, y, in_size, out_size, hidden_size, num_recurrent_layers, train_flag)
 

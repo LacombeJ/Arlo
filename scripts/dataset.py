@@ -52,12 +52,7 @@ def main():
     
     # Configs ---------------------------------------------------------------------------------------- #
     
-    input_columns = ['task0']
-    output_columns = ['joint1', 'joint2', 'joint3', 'joint4','joint5','gripper','steps_to_goal']
-    seq_length = 50  # number of chars in the sequence
-    seq_redundancy = 50
-    future_predictions = [1]
-    hdf5_file = 'input.hdf5'
+    train_data_size = 851
     
     # ------------------------------------------------------------------------------------------------ #
     
