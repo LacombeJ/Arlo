@@ -20,11 +20,11 @@ locals().update(config)
 def main():
     rec = project.load("Recording/")
     
-    root, new = node.load("Processed/")
+    #TODO jonathan save values to a directory
+    #root, new = node.load("Processed/")
     
     num_entries = rec.entryCount()
     
-    max_frames = 1067 # max files
     index_frames = 0
     
     video_data = np.memmap('video_data.npy', dtype='float32', mode='w+',

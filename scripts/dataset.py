@@ -50,18 +50,14 @@ def main():
     network_saver = saver.NetworkSaver('vaegan/models/', net=net)
     network_saver.load()
     
-    # Configs ---------------------------------------------------------------------------------------- #
-    
-    train_data_size = 851
-    
-    # ------------------------------------------------------------------------------------------------ #
-    
     img_data = np.load('img_data.npy', mmap_mode='r')
     data_out = np.load('data_out.npy', mmap_mode='r')
     data_in = np.load('data_in.npy', mmap_mode='r')
     
     data_in = np.array(data_in)
     data_out = np.array(data_out)
+    
+    train_data_size = data_in.shape[0] * train_size
     
     print type(img_data), img_data.shape
     print type(data_in), data_in.shape

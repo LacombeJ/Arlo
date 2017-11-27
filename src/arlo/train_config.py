@@ -6,8 +6,9 @@ config['input_columns'] = ['task0']
 config['output_columns'] = ['joint1', 'joint2', 'joint3', 'joint4','joint5','gripper','steps_to_goal']
 config['future_predictions'] = [1]
 
-config['max_frames'] = 1067 # max files
-#config['train_data_size'] = config['max_frames']
+config['max_frames'] = 2000 # max files
+
+config['train_size'] = 0.80  # fraction of data that goes into train set
 
 # Network parameters
 #config['task_to_perform'] = 3006
