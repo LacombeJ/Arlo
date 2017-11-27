@@ -10,9 +10,13 @@ import arlo.utils.term as term
 
 import arlo.data.node as node
 
+import os
 import numpy as np
 import cv2
-    
+
+from arlo.train_config import config
+locals().update(config)
+
 def main():
     rec = project.load("Recording/")
     
@@ -20,7 +24,7 @@ def main():
     
     num_entries = rec.entryCount()
     
-    max_frames = 2000 # max files
+    max_frames = 1067 # max files
     index_frames = 0
     
     video_data = np.memmap('video_data.npy', dtype='float32', mode='w+',
@@ -80,7 +84,14 @@ def main():
         
         if max_frames <= index_frames:
             break
-        
+            
+    np.save('img_data.npy', video_data)
+    np.save('data_in.npy', in_data)
+    np.save('data_out.npy', control_data)
+    
+    os.remove(video_data.filename)
+    os.remove(in_data.filename)
+    os.remove(control_data.filename)  
     
 def processImage(image):
 

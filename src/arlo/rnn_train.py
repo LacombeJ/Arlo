@@ -3,6 +3,7 @@ import sys
 import operator
 
 import numpy as np
+import h5py
 
 import theano
 from theano import tensor as T
@@ -30,6 +31,11 @@ from blocks import main_loop
 import arlo.net.vaegan as vaegan
 import arlo.net.saver as saver
 
+from train_utils import get_stream, track_best, MainLoop, Dropout, apply_dropout, SetTrainFlag, load_encoder
+from train_model import nn_fprop
+from train_config import config
+locals().update(config)
+
 def run():
 
     # Load Model
@@ -38,26 +44,39 @@ def run():
     #network_saver = saver.NetworkSaver('vaegan/models/', net=net)
     #network_saver.load()
     
+    with h5py.File(hdf5_file) as f:
+        print f
+        print dir(f)
+        print "\n\n"
+        print f.items()
+        print f.keys()
+        print f.values()
+        print "\n\n"
+        print f.attrs, dir(f.attrs)
+        print "\n\n"
+        print f.attrs.items()
+        print f.attrs.keys()
+        print f.attrs.values()
+        print "\n\n"
     
     # Config
     cost_mode = 'RL-MDN'
     input_columns = ['task_dice']
     output_columns = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'gripper', 'steps_to_goal']
     batch_size = 128  # number of samples taken per each update
-    nepochs = 50000  # number of full passes through the training data
+    nepochs = 5 #50000  # number of full passes through the training data
     learning_rate = .005
     learning_rate_decay = 0.5  # set to 0 to not decay learning rate
     lr_decay_every_n_epochs = 100
+    
     
     save_path = 'models/model_save.pkl' #TODO jonathan what is this?
     last_path = 'models/model_last.pkl' #TODO jonathan what is this?
     load_path = save_path
     
-    hdf5_file = 'input.hdf5'  # hdf5 file with Fuel format
-    
     # DATA
-    #train_stream = get_stream(hdf5_file, 'train', batch_size) #TODO jonathan ?
-    #test_stream = get_stream(hdf5_file, 'test', batch_size) #TODO jonathan ?
+    train_stream = get_stream(hdf5_file, 'train', batch_size) #TODO jonathan ?
+    test_stream = get_stream(hdf5_file, 'test', batch_size) #TODO jonathan ?
 
     # MODEL
     x = T.TensorType('floatX', [False] * 3)('features')
@@ -121,34 +140,7 @@ def run():
                          model=Model(cost), extensions=extensions)
     mainLoop.run()
     
-    
-    
-class MainLoop(main_loop.MainLoop):
-    def __init__(self, **kwargs):
-        super(MainLoop, self).__init__(**kwargs)
 
-    def load(self):
-        self.extensions = []
-        
-    
-class SetTrainFlag(SimpleExtension):
-    def __init__(self, flag, **kwargs):
-        super(SetTrainFlag, self).__init__(**kwargs)
-        self.flag = flag
-
-    def do(self, which_callback, *args):
-        self.flag[0].set_value(1 - self.flag[0].eval())
-        print 'train' if self.flag[0].eval() == 1 else 'evaluate'
-        
-def track_best(channel, save_path):
-    sys.setrecursionlimit(1500000)
-    tracker = TrackTheBest(channel, choose_best=min)
-    checkpoint = saveload.Checkpoint(
-        save_path, after_training=False, use_cpickle=True)
-    checkpoint.add_condition(["after_epoch"],
-                             predicate=predicates.OnLogRecord('{0}_best_so_far'.format(channel)))
-    return [tracker, checkpoint]
-    
     
 
 

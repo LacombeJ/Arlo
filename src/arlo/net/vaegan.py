@@ -186,18 +186,18 @@ class VAEGAN(network.Network):
         return self._latent_size
 
     # Encodes image batch
-    def encode(batch):
+    def encode(self,batch):
         with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
             cuda.get_device(self._gpu).use()
-            x_in = xp.asarray(batch)
+            x_in = cp.asarray(batch)
             z, mean, var = self._enc_model(Variable(x_in), train=False)
             return (cuda.to_cpu(z.data), cuda.to_cpu(mean.data), cuda.to_cpu(var.data))
     
     # Decodes z data into image batch
-    def decode(z):
+    def decode(self,z):
         with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
             cuda.get_device(self._gpu).use()
-            z_in = xp.asarray(z)
+            z_in = cp.asarray(z)
             x = self._gen_model(Variable(z_in), train=False)
             return ((cuda.to_cpu(x.data) + 1) * 128).clip(0, 255).astype(np.uint8)
 

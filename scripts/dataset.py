@@ -1,131 +1,133 @@
 #!/usr/bin/env python
 
-import arlo.api.project as project
-import arlo.api.module as module
-import arlo.input.ps4 as ps4
-
-import arlo.utils.ext as ext
-import arlo.utils.log as log
-import arlo.utils.term as term
-
-import arlo.data.node as node
-
+import theano
 import numpy as np
+import sys
 import cv2
+import h5py
+from fuel.datasets import H5PYDataset
+
+import os
+import pandas as pd
+
+from PIL import Image
+#np.random.seed(0)
+
+import arlo.net.vaegan as vaegan
+import arlo.net.saver as saver
+
+from arlo.train_config import config
+locals().update(config)
+
+def encode_image(net, images):
+
+    z, mean, var = net.encode(images)
     
-def main():
-    rec = project.load("Recording/")
-    
-    root, new = node.load("Processed/")
-    
-    num_entries = rec.entryCount()
-    
-    max_frames = 2000 # max files
-    index_frames = 0
-    
-    video_data = np.memmap('video_data.npy', dtype='float32', mode='w+',
-                    shape=(max_frames, 3, 128, 128))
-    control_data = np.memmap('control_data.npy', dtype='float32', mode='w+',
-                    shape=(max_frames, 7))
-    in_data = np.memmap('in_data.npy', dtype='float32', mode='w+',
-                    shape=(max_frames, 1))
-    
-    for i in range(num_entries):
-        entry = rec.entry(i)
-        
-        control_datetime = entry.get("control_datetime", "datetime")
-        control_frames = entry.get("control_frame_times", "json_data")
-        control = entry.get("control_file", "json_data")
-        
-        video_datetime = entry.get("video_datetime", "datetime")
-        video_frames = entry.get("video_frame_times", "json_data")
-        video = entry.get("video_file", "video_numpy")
-        
-        diff_ms = ext.delta_ms(control_datetime - video_datetime)
-        video_start = 0
-        control_start = diff_ms
-        if diff_ms < 0:
-            video_start = abs(diff_ms)
-            control_start = 0
-        
-        timeRateS = 8.0 / 30.0 # seconds
-        timeRate = timeRateS * 1000.0 # ms
-        time = 0
-        
-        while True:
-        
-            if max_frames <= index_frames:
-                break
-        
-            control_index = ext.timeIndex(time + control_start, control_frames)
-            video_index = ext.timeIndex(time + video_start, video_frames)
-            
-            if control_index==None and video_index==None:
-                break
-                
-            VIDEO = clampedIndex(video_index, video)
-            CONTROL = clampedIndex(control_index, control)
-            
-            VIDEO = processImage(VIDEO)
-            CONTROL = processControl(CONTROL)
-            
-            video_data[index_frames] = VIDEO
-            control_data[index_frames] = CONTROL
-            in_data[index_frames] = np.ones(1)
-            
-            time += timeRate
-            index_frames += 1
-        
-        print "{} / {}".format(index_frames, max_frames)
-        
-        if max_frames <= index_frames:
+    return mean
+
+def getConvFeatures(net, data_in, img_data):
+    n_batch = 100
+    code_size = net.get_size()
+    img_features = np.empty((len(data_in), code_size), dtype=theano.config.floatX)
+    for i in xrange(len(data_in)/n_batch+1):
+        sys.stdout.write('\r' + str(i) + '/' + str(len(data_in)/n_batch))
+        sys.stdout.flush()  # important
+        start = i*n_batch
+        end = min((i+1)*n_batch,len(data_in))
+        if start >= end:
             break
+        images = img_data[start:end]
+        print images.shape
+        img_features[start:end] = encode_image(net, images)
         
-    
-def processImage(image):
-
-    # Resize
-    x = 75
-    y = 25
-    w = 400
-    h = 400
-    image = image[y:y+h, x:x+w]
-    image = np.array(image, dtype='float32')
-    image = image / 127.5 - 1;
-    image = cv2.resize(image,(128,128))
-    
-    # Swap axes
-    image = image.swapaxes(0,2)
-    image = image.swapaxes(1,2)
-
-    return image
-    
-def processControl(control):
-    
-    new_control = alpha(np.array(control), 600.0, 2400.0) # Values from max-min of servos in leap_al5d
-    
-    steps_to_goal = 0.0
-    
-    new_control = np.array([control[5], control[0], control[1], control[2], control[3], control[4], steps_to_goal])
-    
-    return new_control
+    data_in = np.column_stack((img_features, data_in))
+    return data_in, data_in.shape[1]
 
 
-def alpha(value, MIN, MAX):
-    V = value - MIN
-    V /= (MAX - MIN)
-    return V
+def main():
+    
+    net = vaegan.VAEGAN()
+    network_saver = saver.NetworkSaver('vaegan/models/', net=net)
+    network_saver.load()
+    
+    # Configs ---------------------------------------------------------------------------------------- #
+    
+    input_columns = ['task0']
+    output_columns = ['joint1', 'joint2', 'joint3', 'joint4','joint5','gripper','steps_to_goal']
+    seq_length = 50  # number of chars in the sequence
+    seq_redundancy = 50
+    future_predictions = [1]
+    hdf5_file = 'input.hdf5'
+    
+    # ------------------------------------------------------------------------------------------------ #
+    
+    img_data = np.load('img_data.npy', mmap_mode='r')
+    data_out = np.load('data_out.npy', mmap_mode='r')
+    data_in = np.load('data_in.npy', mmap_mode='r')
+    
+    data_in = np.array(data_in)
+    data_out = np.array(data_out)
+    
+    print type(img_data), img_data.shape
+    print type(data_in), data_in.shape
+    print type(data_out), data_out.shape
+    
+    data_in, in_size = getConvFeatures(net, data_in, img_data)
+    
+    out_size = len(output_columns)
+    max_prediction = max(future_predictions) + 1
+    if len(data_in) % seq_length > 0:
+        data_in = data_in[:len(data_in) - len(data_in) % seq_length + max_prediction]
+    else:
+        data_in = data_in[:len(data_in) - seq_length + max_prediction]
+    nsamples = (len(data_in) / seq_redundancy)
+    print 'Saving data to disc...'
+    inputs = np.memmap('inputs.npy', dtype=theano.config.floatX, mode='w+', shape=(nsamples, seq_length, in_size))
+    outputs = np.memmap('outputs.npy', dtype=theano.config.floatX, mode='w+',
+                        shape=(nsamples, seq_length, len(future_predictions) * out_size))
+    
+    for i, p in enumerate(xrange(0, len(data_in) - max_prediction - seq_length, seq_redundancy)):
+        inputs[i] = np.array([d for d in data_in[p:p + seq_length]])
+        for j in xrange(len(future_predictions)):
+            outputs[i, :, j * out_size:(j + 1) * out_size] = np.array(
+                [d for d in data_out[p + future_predictions[j]:p + seq_length + future_predictions[j]]])
 
-def clampedIndex(index, array):
-    if index == -1:
-        return array[0]
-    elif index == None:
-        return array[-1]
-    return array[index]
+    nsamples = len(inputs)
+    nsamples_train = train_data_size // seq_length
 
-if __name__=="__main__":
+    print np.isnan(np.sum(inputs))
+    print np.isnan(np.sum(outputs))
+
+    f = h5py.File(hdf5_file, mode='w')
+    features = f.create_dataset('features', inputs.shape, dtype=theano.config.floatX)
+    targets = f.create_dataset('targets', outputs.shape, dtype=theano.config.floatX)
+
+    features[...] = inputs
+    targets[...] = outputs
+    features.dims[0].label = 'batch'
+    features.dims[1].label = 'sequence'
+    features.dims[2].label = 'features'
+    targets.dims[0].label = 'batch'
+    targets.dims[1].label = 'sequence'
+    targets.dims[2].label = 'outputs'
+    split_dict = {
+        'train': {'features': (0, nsamples_train), 'targets': (0, nsamples_train)},
+        'test': {'features': (nsamples_train, nsamples), 'targets': (nsamples_train, nsamples)}}
+    f.attrs['split'] = H5PYDataset.create_split_array(split_dict)
+    f.flush()
+    f.close()
+    
+    print nsamples_train, nsamples, train_data_size, seq_length
+    print 'inputs shape:', inputs.shape
+    print 'outputs shape:', outputs.shape
+    print 'image inputs shape:', img_data.shape
+    os.remove(inputs.filename)
+    os.remove(outputs.filename)
+    print 'Files saved on disc for Blocks!'
+
+if __name__ == "__main__":
     main()
-
+    
 
 
 
