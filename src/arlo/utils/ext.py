@@ -6,6 +6,27 @@ import inspect
 import time
 import datetime as _datetime
 
+import numpy as np
+import cv2
+
+def display(image, x=32, y=32):
+    name = '_ext_display_'
+    cv2.imshow(name, image)
+    cv2.moveWindow(name, x,y) 
+    cv2.waitKey(0)
+
+def translate(path, otype, value):
+    if otype == 'video_cap':
+        return cv2.VideoCapture(path+value)
+    if otype == 'video_numpy':
+        return readVideo(path+value)
+    if otype == 'image_cv2':
+        return cv2.imread(path+value)
+    if otype == 'json_data':
+        return config.read(path+value).get('data')
+    if otype == 'datetime':
+        return ext.unpack_datetime(value)
+    return None
 
 def list_format(_list):
     result = ""

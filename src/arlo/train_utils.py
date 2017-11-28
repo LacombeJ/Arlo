@@ -93,9 +93,7 @@ def get_metadata(hdf5_file):
         disc_out_size = len(ix_to_out)
     return ix_to_out, out_to_ix, disc_out_size
 
-def load_encoder():
-    return None, get_latent_size()
-
+'''
 def encode_image(imgs, encoder=None):
     imgs = imgs.astype( theano.config.floatX )
     imgs = imgs /127.5 - 1.
@@ -105,6 +103,7 @@ def encode_image(imgs, encoder=None):
 def decode_image(z, encoder=None):
     x = decode(z)
     return x
+'''
 
 def read_image(path):
     image = Image.open(path)

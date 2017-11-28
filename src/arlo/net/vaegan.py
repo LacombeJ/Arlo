@@ -201,6 +201,11 @@ class VAEGAN(network.Network):
             x = self._gen_model(Variable(z_in), train=False)
             return ((cuda.to_cpu(x.data) + 1) * 128).clip(0, 255).astype(np.uint8)
 
+    # Encodes then decodes batch
+    def reconstruct(self, batch):
+        z,m,v = self.encode(batch)
+        return self.decode(z)
+
     # Returns encoded image from the image batch ? TODO
     def image(self, image_batch):
         

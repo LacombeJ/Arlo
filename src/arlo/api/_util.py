@@ -8,6 +8,7 @@ import arlo.utils.term as term
 import cv2
 import numpy as np
 
+#TODO jonathan reference translator from ext
 def _default_translate(path, otype, value):
     if otype == 'video_cap':
         return cv2.VideoCapture(path+value)

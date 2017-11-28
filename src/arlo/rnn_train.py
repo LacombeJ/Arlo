@@ -31,7 +31,7 @@ from blocks import main_loop
 import arlo.net.vaegan as vaegan
 import arlo.net.saver as saver
 
-from train_utils import get_stream, track_best, MainLoop, Dropout, apply_dropout, SetTrainFlag, load_encoder
+from train_utils import get_stream, track_best, MainLoop, Dropout, apply_dropout, SetTrainFlag
 from train_model import nn_fprop
 from train_config import config
 locals().update(config)
@@ -60,10 +60,6 @@ def run():
         print f.attrs.values()
         print "\n\n"
     '''
-    
-    save_path = 'models/model_save.pkl' #TODO jonathan what is this?
-    last_path = 'models/model_last.pkl' #TODO jonathan what is this?
-    load_path = save_path
     
     # DATA
     train_stream = get_stream(hdf5_file, 'train', batch_size) #TODO jonathan ?

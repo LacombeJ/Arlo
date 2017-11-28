@@ -7,16 +7,14 @@ from blocks.roles import OUTPUT
 from blocks.model import Model
 from blocks.extensions import saveload
 from blocks.filter import VariableFilter
-from utils import MainLoop
-from config import config
-from model import nn_fprop
-from utils import pre_process_image, load_encoder, encode_image, decode_image
+
 import argparse
 import sys
 import os
 import pandas as pd
 import time
 import signal
+
 from pandas.parser import CParserError
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -29,12 +27,46 @@ import cv2
 import PIL
 import scipy
 
+import arlo.net.vaegan as vaegan
+import arlo.net.saver as saver
+import arlo.data.node as node
+import arlo.utils.ext as ext
+
+from train_utils import MainLoop
+from train_config import config
+from train_model import nn_fprop
+from train_utils import pre_process_image #, load_encoder, encode_image, decode_image
+
 locals().update(config)
 sceneStateFile = os.path.abspath("predictions/sceneState")
 
-def load_models(model_path=save_path, in_size=len(input_columns),
+def load_encoder(net):
+    return None, net.get_size()
+    
+
+def encode_image(net, images):
+    z, mean, var = net.encode(images)
+    return mean
+
+def decode_image(net, z):
+    x = net.decode(z)
+    return x
+
+def arlo_preprocess(data):
+
+    data = np.array(data, dtype='float32')
+    data = cv2.resize(data,(128,128))
+    data = cv2.flip(data, 1)
+    data = data / 127.5 - 1;
+    data = data.swapaxes(0,2)
+    data = data.swapaxes(1,2)
+
+    return data
+
+def load_models(net, model_path=save_path, in_size=len(input_columns),
                 out_size=len(output_columns) - 1 if cost_mode == 'RL-MDN' else len(output_columns),
                 hidden_size=hidden_size, num_recurrent_layers=num_recurrent_layers, model=layer_models[0]):
+    
     initials = []
     if not os.path.isfile(model_path):
         print 'Could not find model file.'
@@ -43,7 +75,9 @@ def load_models(model_path=save_path, in_size=len(input_columns),
     x = tensor.tensor3('features', dtype=theano.config.floatX)
     y = tensor.tensor3('targets', dtype='floatX')
     train_flag = [theano.shared(0)]
-    _, latent_size = load_encoder()
+    
+    latent_size = net.get_size() # latent_size
+    
     in_size = latent_size + len(input_columns)
     y_hat, cost, cells = nn_fprop(x, y, in_size, out_size, hidden_size, num_recurrent_layers, train_flag)
     main_loop = MainLoop(algorithm=None, data_stream=None, model=Model(cost),
@@ -60,27 +94,41 @@ def load_models(model_path=save_path, in_size=len(input_columns),
         hiddens.extend(VariableFilter(theano_name=brick.name + '_apply_cells')(cells))
         initials.extend(VariableFilter(roles=[roles.INITIAL_STATE])(brick.parameters))
     predict_func = theano.function([x], hiddens + [y_hat])
-    encoder, code_size = load_encoder()
+    encoder, code_size = load_encoder(net)
     return predict_func, initials, encoder, code_size
 
 
-def predict_one_timestep(predict_func, encoder, code_size, initials, x, out_size, iteration):
+def predict_one_timestep(net, predict_func, encoder, code_size, initials, x, out_size, iteration):
     try:
+        '''
         img = CvBridge().imgmsg_to_cv2(camera1_msg, "bgr8")
         img = np.array(img, dtype=np.float)
         img = img[0:540, 250:840]
-        cv2.imwrite('predictions/current_image.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        '''
+        
+        '''
+        width = 540
+        height = 590
+        img = np.ones((height,width,3), np.float)
+        img *= 128 #grey
+        '''
+        
+        root, new = node.load("Images", translate=ext.translate)
+        img = root.get('image', 'image_cv2')
+        
+        cv2.imwrite('predictions/current_image.jpg', img)
     except (CvBridgeError) as e:
         print(e)
     else:
-        image = PIL.Image.open('predictions/current_image.jpg')
-        current_scene_image = pre_process_image(image)
+        #image = PIL.Image.open('predictions/current_image.jpg')
+        image = cv2.imread('predictions/current_image.jpg')
+        current_scene_image = arlo_preprocess(image)
         cv2.imshow('Input image', cv2.resize(np.array(current_scene_image.transpose((1, 2, 0)))[...,::-1], (0,0), fx=4, fy=4, interpolation=cv2.INTER_NEAREST ))
         cv2.waitKey(10)
     current_scene_image = np.array(current_scene_image, dtype=np.float32)
     images = np.array([current_scene_image])
-    _, encoded_images= encode_image(images, encoder)
-    decoded_images = decode_image(encoded_images, encoder)
+    encoded_images= encode_image(net, images)
+    decoded_images = decode_image(net, encoded_images)
     cv2.imshow('Reconstructed image', cv2.resize(np.array(decoded_images[0].transpose((1, 2, 0)))[...,::-1], (0,0), fx=4, fy=4, interpolation=cv2.INTER_NEAREST ))
     cv2.waitKey(10)
     x = np.concatenate([encoded_images[0], x])
@@ -117,11 +165,16 @@ def plot_arrays(arrays, title='image'):
     cv2.waitKey(10)
 
 def sample():
+
+    net = vaegan.VAEGAN()
+    network_saver = saver.NetworkSaver('vaegan/models/', net=net)
+    network_saver.load()
+
     if plot_hidden_states:
         plt.ion()
         plt.ylim([-2, +4])
         plt.show()
-    predict_func, initials, encoder, code_size = load_models()
+    predict_func, initials, encoder, code_size = load_models(net)
     print("Generating trajectory...")
     last_time = 0
     counter = 0
@@ -137,7 +190,7 @@ def sample():
                 command_msg = Float32MultiArray()
                 command_msg.data = predicted[0:out_size]
                 print predicted
-                robot_command_pub.publish(command_msg)
+                #robot_command_pub.publish(command_msg)
             except IOError:
                 print 'could not open the prediction file.'
             prediction_diff = ((last_prediction[0:out_size] - predicted[0:out_size]) ** 2).mean()
@@ -155,7 +208,7 @@ def sample():
                     break
             last_time = new_state['time'][0]
             x = np.array(new_state[input_columns].iloc[0], dtype=theano.config.floatX)
-            predicted, newinitials = predict_one_timestep(predict_func, encoder, code_size, initials, x, out_size, iteration)
+            predicted, newinitials = predict_one_timestep(net, predict_func, encoder, code_size, initials, x, out_size, iteration)
             last_prediction = predicted.copy()
             if plot_hidden_states:
                 plot_arrays(newinitials)
@@ -166,9 +219,8 @@ def sample():
         if (time.time() - last_speed_calc > 1):
             counter = 0
             last_speed_calc = time.time()
+def main():
 
-
-if __name__ == '__main__':
     if robot == 'al5d' or robot == 'mico':
         rospy.init_node('roboinstruct')
         def camera1_callback(msg):
@@ -181,9 +233,9 @@ if __name__ == '__main__':
             move_msg = msg
             last_move_msg_time = time.time()
 
-        image_sub = rospy.Subscriber(camera1_image_topic, Image, camera1_callback)
-        image_sub = rospy.Subscriber("/move_info_for_test", Float32MultiArray, move_callback)
-        robot_command_pub = rospy.Publisher("/robot_command", Float32MultiArray, queue_size=100)
+        #image_sub = rospy.Subscriber(camera1_image_topic, Image, camera1_callback)
+        #image_sub = rospy.Subscriber("/move_info_for_test", Float32MultiArray, move_callback)
+        #robot_command_pub = rospy.Publisher("/robot_command", Float32MultiArray, queue_size=100)
 
         def signal_handler(signal, frame):
             sys.exit(0)
@@ -193,3 +245,8 @@ if __name__ == '__main__':
     float_formatter = lambda x: "%.5f" % x
     np.set_printoptions(formatter={'float_kind': float_formatter})
     sample()
+
+
+if __name__ == '__main__':
+    main()
+    
