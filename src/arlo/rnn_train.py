@@ -44,23 +44,6 @@ def run():
     #network_saver = saver.NetworkSaver('vaegan/models/', net=net)
     #network_saver.load()
     
-    '''
-    with h5py.File(hdf5_file) as f:
-        print f
-        print dir(f)
-        print "\n\n"
-        print f.items()
-        print f.keys()
-        print f.values()
-        print "\n\n"
-        print f.attrs, dir(f.attrs)
-        print "\n\n"
-        print f.attrs.items()
-        print f.attrs.keys()
-        print f.attrs.values()
-        print "\n\n"
-    '''
-    
     # DATA
     train_stream = get_stream(hdf5_file, 'train', batch_size) #TODO jonathan ?
     test_stream = get_stream(hdf5_file, 'test', batch_size) #TODO jonathan ?
@@ -77,14 +60,7 @@ def run():
     latent_size = net_size
     in_size = latent_size + len(input_columns)
     
-    print "==============================="
-    print x, y
-    print input_columns
-    print latent_size, len(input_columns)
-    print in_size, out_size, hidden_size
-    print num_recurrent_layers
-    print train_flag
-    # Network
+    # NN fprop
     y_hat, cost, cells = nn_fprop(x, y, in_size, out_size, hidden_size, num_recurrent_layers, train_flag)
 
     # COST

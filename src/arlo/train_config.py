@@ -1,5 +1,11 @@
 config = {}
 
+
+
+config['nepochs'] = 200  # number of full passes through the training data
+config['max_frames'] = 10000 # max training files
+
+
 config['robot'] = 'al5d' #TODO remove all references of 'robot' and hardcode al5d support for now
 config['task_to_perform'] = 0
 
@@ -9,7 +15,7 @@ config['input_columns'] = ['task0']
 config['output_columns'] = ['joint1', 'joint2', 'joint3', 'joint4','joint5','gripper','steps_to_goal']
 config['future_predictions'] = [1]
 
-config['max_frames'] = 2000 # max files
+
 
 config['train_size'] = 0.80  # fraction of data that goes into train set
 
@@ -25,7 +31,7 @@ config['decay_rate'] = 0.999  # decay rate for rmsprop and AdaDelta
 config['step_clipping'] = 1.0  # clip norm of gradients at this value
 config['dropout'] = .5
 config['max_norm_threshold'] = 4
-config['nepochs'] = 5  # number of full passes through the training data
+
 config['seq_length'] = 50  # number of time-steps in the sequence (for truncated BPTT)
 config['seq_redundancy'] = 50
 config['linear_before_recurrent_size'] = 0

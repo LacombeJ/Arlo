@@ -63,8 +63,6 @@ def main():
     print type(data_in), data_in.shape
     print type(data_out), data_out.shape
     
-    #TODO jonathan validate feature extraction with reconstruction example
-    
     data_in, in_size = getConvFeatures(net, data_in, img_data)
     
     out_size = len(output_columns)

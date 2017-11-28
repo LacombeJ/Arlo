@@ -20,8 +20,48 @@ from scipy.misc import imresize
 def main():
 
     #save_image()
-    encode()
+    #encode()
+    read_data()
+    #count_num()
 
+def count_num():
+
+    proj = project.load("Recording/")
+    
+    count = 0
+        
+    num_entries = proj.entryCount()
+    
+    for i in range(num_entries):
+        entry = proj.entry(i)
+        duration = entry.get("control_duration")
+        duration /= 1000.0
+        c = duration * 30.0/8.0
+        count += int(c)
+        print count
+        
+    print count
+
+def read_data():
+
+    data_out = np.load('data_out.npy', mmap_mode='r')
+    
+    print data_out
+    
+    index = 0
+    for i in range(len(data_out)):
+        array = data_out[i]
+        print array
+            
+    #18536
+    
+    print "======================================"
+    
+    
+    
+    print data_out.shape
+    
+    
 
 def get_sample_image():
 

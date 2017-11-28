@@ -52,16 +52,55 @@ def decode_image(net, z):
     x = net.decode(z)
     return x
 
+def arlo_crop(data):
+    
+    x = 75
+    y = 25
+    w = 400
+    h = 400
+    data = data[y:y+h, x:x+w]
+    
+    return data
+    
+
 def arlo_preprocess(data):
 
     data = np.array(data, dtype='float32')
     data = cv2.resize(data,(128,128))
-    data = cv2.flip(data, 1)
+    #data = cv2.flip(data, 1)
     data = data / 127.5 - 1;
     data = data.swapaxes(0,2)
     data = data.swapaxes(1,2)
 
     return data
+
+
+class ImageFrame(object):
+
+    # Returns image
+    def get(self):
+        return None
+        
+class VideoFrame(object):
+
+    def __init__(self):
+        self._cap = cv2.VideoCapture('video.avi')
+
+        if self._cap is None:
+            print "Video not found"
+
+        if not self._cap.isOpened():
+            print "Video not opened"
+            
+    def get(self):
+        ret, frame = self._cap.read()
+        if ret is False:
+            return None
+        return frame
+        
+    def finish(self):
+        self._cap.release()
+
 
 def load_models(net, model_path=save_path, in_size=len(input_columns),
                 out_size=len(output_columns) - 1 if cost_mode == 'RL-MDN' else len(output_columns),
@@ -98,33 +137,21 @@ def load_models(net, model_path=save_path, in_size=len(input_columns),
     return predict_func, initials, encoder, code_size
 
 
-def predict_one_timestep(net, predict_func, encoder, code_size, initials, x, out_size, iteration):
-    try:
-        '''
-        img = CvBridge().imgmsg_to_cv2(camera1_msg, "bgr8")
-        img = np.array(img, dtype=np.float)
-        img = img[0:540, 250:840]
-        '''
-        
-        '''
-        width = 540
-        height = 590
-        img = np.ones((height,width,3), np.float)
-        img *= 128 #grey
-        '''
-        
-        root, new = node.load("Images", translate=ext.translate)
-        img = root.get('image', 'image_cv2')
-        
-        cv2.imwrite('predictions/current_image.jpg', img)
-    except (CvBridgeError) as e:
-        print(e)
-    else:
-        #image = PIL.Image.open('predictions/current_image.jpg')
-        image = cv2.imread('predictions/current_image.jpg')
-        current_scene_image = arlo_preprocess(image)
-        cv2.imshow('Input image', cv2.resize(np.array(current_scene_image.transpose((1, 2, 0)))[...,::-1], (0,0), fx=4, fy=4, interpolation=cv2.INTER_NEAREST ))
-        cv2.waitKey(10)
+def predict_one_timestep(net, imageFrame, predict_func, encoder, code_size, initials, x, out_size, iteration):
+    
+    image = imageFrame.get()
+    
+    #TODO remove this for webcam capture
+    for i in range(7):
+        imageFrame.get()
+    
+    image = arlo_crop(image)
+    
+    cv2.imshow('Input image', image)
+    cv2.waitKey(10)
+    
+    current_scene_image = arlo_preprocess(image)
+    
     current_scene_image = np.array(current_scene_image, dtype=np.float32)
     images = np.array([current_scene_image])
     encoded_images= encode_image(net, images)
@@ -170,6 +197,8 @@ def sample():
     network_saver = saver.NetworkSaver('vaegan/models/', net=net)
     network_saver.load()
 
+    imageFrame = VideoFrame()
+
     if plot_hidden_states:
         plt.ion()
         plt.ylim([-2, +4])
@@ -187,10 +216,13 @@ def sample():
     for iteration in range(10000000):
         try:
             try:
-                command_msg = Float32MultiArray()
-                command_msg.data = predicted[0:out_size]
+                #command_msg = Float32MultiArray()
+                #command_msg.data = predicted[0:out_size]
                 print predicted
                 #robot_command_pub.publish(command_msg)
+                
+                #TODO jonathan process predicted
+                
             except IOError:
                 print 'could not open the prediction file.'
             prediction_diff = ((last_prediction[0:out_size] - predicted[0:out_size]) ** 2).mean()
@@ -208,7 +240,7 @@ def sample():
                     break
             last_time = new_state['time'][0]
             x = np.array(new_state[input_columns].iloc[0], dtype=theano.config.floatX)
-            predicted, newinitials = predict_one_timestep(net, predict_func, encoder, code_size, initials, x, out_size, iteration)
+            predicted, newinitials = predict_one_timestep(net, imageFrame, predict_func, encoder, code_size, initials, x, out_size, iteration)
             last_prediction = predicted.copy()
             if plot_hidden_states:
                 plot_arrays(newinitials)

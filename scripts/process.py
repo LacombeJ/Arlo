@@ -112,14 +112,14 @@ def processImage(image):
     return image
     
 def processControl(control):
-    
-    new_control = alpha(np.array(control), 600.0, 2400.0) # Values from max-min of servos in leap_al5d
+
+    control = alpha(np.array(control), 600.0, 2400.0) # Values from max-min of servos in leap_al5d
     
     steps_to_goal = 0.0
     
-    new_control = np.array([control[5], control[0], control[1], control[2], control[3], control[4], steps_to_goal])
+    control = np.array([control[5], control[0], control[1], control[2], control[3], control[4], steps_to_goal])
     
-    return new_control
+    return control
 
 
 def alpha(value, MIN, MAX):
