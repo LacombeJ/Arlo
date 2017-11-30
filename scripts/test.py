@@ -21,8 +21,77 @@ def main():
 
     #save_image()
     #encode()
-    read_data()
+    #read_data()
     #count_num()
+    recVideo()
+
+def recVideo():
+
+    proj = project.load("Recording/")
+    entry = proj.entry(304)
+    
+    data = entry.get("video_file", "video_numpy")
+    print data.shape
+    
+    images = []
+    for d in data:
+        d = processImage(d)
+        d = prepareData(d)
+        images.append(d)
+        
+    images = np.array(images, dtype=np.float32)
+    
+    print images.shape
+    print "Loading net..."
+    net = vaegan.VAEGAN()
+    network_saver = saver.NetworkSaver('vaegan/models/', net=net)
+    network_saver.load()
+    print "Net loaded"
+    
+    count = 0
+    length = images.shape[0]
+    i = 20
+    
+    total = []
+    
+    while True:
+        if count >= length:
+            break
+        start = count
+        end = min(count+i, length)
+        print start, end
+        
+        imgBatch = images[start:end]
+        rec = net.reconstruct(imgBatch)
+        rec = rec.swapaxes(2,3)
+        rec = rec.swapaxes(1,3)
+        for r in rec:
+            total.append(r)
+        
+        count += i
+        
+    total = np.array(total, np.float32)
+    
+    print total.shape
+    print total
+    total = np.array(total, np.uint8)
+    
+    # Output -------------------
+    
+    file = 'video_rec_new.avi'
+
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    fps = 30.0
+    width = 128
+    height = 128
+
+    out = cv2.VideoWriter(file, fourcc, fps, (width, height))
+    
+    for f in total:
+        out.write(f)
+    
+    out.release()
+    
 
 def count_num():
 
@@ -141,6 +210,17 @@ def processImage(image):
 
     return image
 
+def prepareData(data):
+
+    data = np.array(data)
+    data = cv2.resize(data,(128,128))
+    data = np.array(data, dtype='float32')
+    data = data / 127.5 - 1;
+    data = np.array(data)
+    data = data.swapaxes(0,2)
+    data = data.swapaxes(1,2)
+    
+    return data
 
 if __name__=='__main__':
     main()

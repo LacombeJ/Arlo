@@ -31,6 +31,7 @@ import arlo.net.vaegan as vaegan
 import arlo.net.saver as saver
 import arlo.data.node as node
 import arlo.utils.ext as ext
+import arlo.output.al5d as al5d
 
 from train_utils import MainLoop
 from train_config import config
@@ -80,6 +81,28 @@ class ImageFrame(object):
     # Returns image
     def get(self):
         return None
+        
+        
+class WebcamFrame(object):
+
+    def __init__(self):
+        self._cap = cv2.VideoCapture(0)
+
+        if self._cap is None:
+            print "Webcam not found"
+
+        if not self._cap.isOpened():
+            print "Webcam not opened"
+            
+    def get(self):
+        ret, frame = self._cap.read()
+        if ret is False:
+            return None
+        return frame
+        
+    def finish(self):
+        self._cap.release()
+        
         
 class VideoFrame(object):
 
@@ -142,7 +165,7 @@ def predict_one_timestep(net, imageFrame, predict_func, encoder, code_size, init
     image = imageFrame.get()
     
     #TODO remove this for webcam capture
-    for i in range(7):
+    for i in range(4):
         imageFrame.get()
     
     image = arlo_crop(image)
@@ -191,13 +214,54 @@ def plot_arrays(arrays, title='image'):
     cv2.imshow(title, vis)
     cv2.waitKey(10)
 
+def toTrajectories(predicted, pos):
+    array = [float(i) for i in predicted]
+    for i in range(len(array)):
+        if array[i] < 0.0:
+            array[i] = 0.0
+        if array[i] > 1.0:
+            array[i] = 1.0
+    array = np.array(array, np.float32)
+    
+    MIN = 600
+    MAX = 2400
+    array *= (MAX - MIN)
+    array += MIN
+    array = np.array(array, np.int32)
+    array = [array[1], array[2], array[3], array[4], array[5], array[0]]
+    traj = [pos[0], pos[1], pos[2], pos[3], pos[4], pos[5]]
+    traj[0] = array[0]
+    traj[1] = array[1]
+    traj[2] = array[2]
+    traj[3] = array[3]
+    traj[4] = array[4]
+    traj[5] = array[5]
+    return traj
+    
+def moveTowards(array, towards, max_step=100):
+    move = [i for i in array]
+    for i in range(len(array)):
+        diff = towards[i] - array[i]
+        if abs(diff) < max_step:
+            move[i] = towards[i]
+        else:
+            s = 1 if diff > 0 else -1
+            move[i] = array[i] + s * max_step
+    return move
+
 def sample():
 
     net = vaegan.VAEGAN()
     network_saver = saver.NetworkSaver('vaegan/models/', net=net)
     network_saver.load()
 
+    #imageFrame = WebcamFrame()
     imageFrame = VideoFrame()
+
+    arm = al5d.RobotArm()
+    err = arm.create()
+    if err is not None:
+        print "Al5d arm failed to initialize"
 
     if plot_hidden_states:
         plt.ion()
@@ -219,8 +283,17 @@ def sample():
                 #command_msg = Float32MultiArray()
                 #command_msg.data = predicted[0:out_size]
                 print predicted
-                #robot_command_pub.publish(command_msg)
+                pos = arm.get_pos()
+                traj = toTrajectories(predicted, pos)
+                print traj
                 
+                
+                move = moveTowards(pos, traj)
+                
+                print pos, move
+                
+                #robot_command_pub.publish(command_msg)
+                arm.move(move)
                 #TODO jonathan process predicted
                 
             except IOError:
@@ -251,6 +324,8 @@ def sample():
         if (time.time() - last_speed_calc > 1):
             counter = 0
             last_speed_calc = time.time()
+            
+            
 def main():
 
     if robot == 'al5d' or robot == 'mico':
